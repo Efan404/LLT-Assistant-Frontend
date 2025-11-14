@@ -2,3 +2,10 @@ out
 dist
 node_modules
 .vscode-test/
+*.vsix
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
