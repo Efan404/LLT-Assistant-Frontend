@@ -13,7 +13,7 @@ suite('Property-Based Tests', () => {
       // Property: Any generated test code should be syntactically valid Python
       fc.assert(
         fc.property(
-          fc.stringOf(fc.char(), { minLength: 1, maxLength: 50 }),
+          fc.string({ minLength: 1, maxLength: 50 }),
           (functionName) => {
             // Skip invalid Python identifiers
             if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(functionName)) {
@@ -35,7 +35,7 @@ suite('Property-Based Tests', () => {
       fc.assert(
         fc.property(
           fc.record({
-            functionName: fc.stringOf(fc.char(), { minLength: 1, maxLength: 20 }),
+            functionName: fc.string({ minLength: 1, maxLength: 20 }),
             params: fc.array(fc.string(), { maxLength: 5 }),
           }),
           (input) => {
@@ -131,7 +131,7 @@ suite('Property-Based Tests', () => {
     test('relative paths should always start without slash', () => {
       fc.assert(
         fc.property(
-          fc.array(fc.stringOf(fc.char(), { minLength: 1, maxLength: 20 }), {
+          fc.array(fc.string({ minLength: 1, maxLength: 20 }), {
             minLength: 1,
             maxLength: 5,
           }),
@@ -181,7 +181,7 @@ suite('Property-Based Tests', () => {
     test('issue type formatting should be reversible', () => {
       fc.assert(
         fc.property(
-          fc.stringOf(fc.char(), { minLength: 1, maxLength: 50 }),
+          fc.string({ minLength: 1, maxLength: 50 }),
           (issueType) => {
             // Property: format(parse(format(x))) should preserve meaning
             const formatted = formatIssueType(issueType);

@@ -8,7 +8,7 @@ import { MockTextDocument, Uri } from '../mocks/vscode';
 import type {
   AnalyzeQualityResponse,
   QualityIssue,
-  QualityMetrics,
+  AnalysisMetrics,
   IssueSuggestion,
 } from '../../quality/api/types';
 
@@ -55,8 +55,8 @@ export function createMockSuggestion(
  * Create mock quality metrics
  */
 export function createMockQualityMetrics(
-  overrides: Partial<QualityMetrics> = {}
-): QualityMetrics {
+  overrides: Partial<AnalysisMetrics> = {}
+): AnalysisMetrics {
   return {
     total_tests: 45,
     issues_count: 12,
