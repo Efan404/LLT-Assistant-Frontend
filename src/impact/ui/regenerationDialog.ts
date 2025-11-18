@@ -141,7 +141,9 @@ export class RegenerationDialogManager {
 								functionContext,
 								`Generate comprehensive test for ${functionName}`,
 								async (stage1Response) => {
-									// Auto-confirm without user interaction
+									// Auto-confirm without user interaction.
+									// Confirmation is auto-approved during batch regeneration
+									// because the user already confirmed at the decision dialog stage.
 									return { confirmed: true, cancelled: false };
 								}
 							);
@@ -163,8 +165,7 @@ export class RegenerationDialogManager {
 							results.push({
 								test,
 								oldCode: oldTestCode,
-								newCode: newTestCode,
-								accepted: false
+								newCode: newTestCode
 							});
 						} catch (error) {
 							console.error(`Error generating test for ${test.test_name}:`, error);
@@ -309,13 +310,19 @@ export class RegenerationDialogManager {
 
 				// If we're in the test, collect lines
 				if (inTest) {
+					// Empty lines: include if they appear within the function
+					if (line.trim() === '') {
+						testCode += line + '\n';
+						continue;
+					}
+
 					const currentIndent = line.search(/\S/);
 
-					// Empty line or line with content at deeper indentation
-					if (line.trim() === '' || currentIndent > baseIndent) {
+					// Line with content at deeper indentation
+					if (currentIndent > baseIndent) {
 						testCode += line + '\n';
 					} else {
-						// Test ended
+						// Test ended (found line at same or less indentation)
 						break;
 					}
 				}
@@ -438,14 +445,19 @@ export class RegenerationDialogManager {
 
 			// If we're in the test, skip old lines
 			if (inTest) {
+				// Empty lines within test: skip
+				if (line.trim() === '') {
+					continue;
+				}
+
 				const currentIndent = line.search(/\S/);
 
-				// Empty line or line with content at deeper indentation
-				if (line.trim() === '' || currentIndent > baseIndent) {
+				// Line with content at deeper indentation: skip
+				if (currentIndent > baseIndent) {
 					// Skip old test lines
 					continue;
 				} else {
-					// Test ended
+					// Test ended (found line at same or less indentation)
 					inTest = false;
 					result.push(line);
 				}

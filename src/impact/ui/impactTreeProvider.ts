@@ -339,7 +339,7 @@ export class ImpactTreeProvider implements vscode.TreeDataProvider<ImpactTreeIte
 			}
 
 			// Create items for each test file
-			for (const [testFile, tests] of testsByFile.entries()) {
+			for (const tests of testsByFile.values()) {
 				for (const test of tests) {
 					const testItem = this.createTestItem(test);
 					items.push(testItem);
@@ -457,6 +457,38 @@ export class ImpactTreeProvider implements vscode.TreeDataProvider<ImpactTreeIte
 	}
 
 	/**
+	 * Find the best matching source file for a test
+	 * Uses naming conventions to match test files to source files
+	 */
+	private findBestMatchingSourceFile(test: AffectedTest, sourceFiles: string[]): string | null {
+		// Infer expected source file from test file
+		// tests/test_calculator.py -> calculator.py or src/calculator.py
+		const testFileName = test.file_path.split('/').pop() || '';
+		const expectedSourceFileName = testFileName.replace(/^test_/, '');
+
+		// Priority 1: Exact file name match
+		for (const sourcePath of sourceFiles) {
+			const sourceFileName = sourcePath.split('/').pop() || '';
+			if (sourceFileName === expectedSourceFileName) {
+				return sourcePath;
+			}
+		}
+
+		// Priority 2: Match without extension
+		const testFileBaseName = expectedSourceFileName.replace(/\.py$/, '');
+		for (const sourcePath of sourceFiles) {
+			const sourceFileName = sourcePath.split('/').pop() || '';
+			const sourceFileBaseName = sourceFileName.replace(/\.py$/, '');
+			if (sourceFileBaseName === testFileBaseName) {
+				return sourcePath;
+			}
+		}
+
+		// No match found
+		return null;
+	}
+
+	/**
 	 * Build File→Tests mapping
 	 */
 	private buildFileToTestsMapping(): FileToTestsMapping {
@@ -477,12 +509,19 @@ export class ImpactTreeProvider implements vscode.TreeDataProvider<ImpactTreeIte
 			mapping[func.file_path].functions.push(func);
 		}
 
-		// Add affected tests to corresponding files
+		// Add affected tests to corresponding files with smart matching
 		for (const test of this.data.affected_tests) {
-			// Find which source file this test is related to
-			// For now, associate with all changed files
-			for (const filePath of Object.keys(mapping)) {
-				mapping[filePath].affected_tests.push(test);
+			// Find which source file this test is most likely related to
+			const matchedFilePath = this.findBestMatchingSourceFile(test, Object.keys(mapping));
+
+			if (matchedFilePath && mapping[matchedFilePath]) {
+				mapping[matchedFilePath].affected_tests.push(test);
+			} else {
+				// Fallback: if no good match found, add to all files (legacy behavior)
+				// This ensures we don't lose tests in the UI
+				for (const filePath of Object.keys(mapping)) {
+					mapping[filePath].affected_tests.push(test);
+				}
 			}
 		}
 

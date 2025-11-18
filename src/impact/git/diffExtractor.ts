@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { execSync } from 'child_process';
 import * as path from 'path';
-import { CodeChange, DiffResult } from '../models/types';
+import { CodeChange } from '../models/types';
 import { PythonASTAnalyzer } from '../../analysis';
 
 /**

@@ -74,6 +74,7 @@ export class AnalyzeImpactCommand {
 						const allFunctionChanges: any[] = [];
 						let totalLinesAdded = 0;
 						let totalLinesRemoved = 0;
+						const failedFiles: string[] = [];
 
 						for (const [filePath, change] of changes.entries()) {
 							const request: DetectCodeChangesRequest = {
@@ -95,6 +96,7 @@ export class AnalyzeImpactCommand {
 								totalLinesRemoved += response.change_summary.lines_removed;
 							} catch (error) {
 								console.error(`Error analyzing ${filePath}:`, error);
+								failedFiles.push(filePath);
 								// Continue with other files
 							}
 						}
@@ -121,15 +123,23 @@ export class AnalyzeImpactCommand {
 						// Show summary
 						const filesChanged = changes.size;
 						const testsAffected = allAffectedTests.length;
+						const successCount = filesChanged - failedFiles.length;
+
+						// Build summary message
+						let summaryMessage = `Impact analysis complete: ${successCount}/${filesChanged} files analyzed`;
 
 						if (testsAffected > 0) {
-							vscode.window.showInformationMessage(
-								`Impact analysis complete: ${filesChanged} files changed, ${testsAffected} tests affected`
-							);
+							summaryMessage += `, ${testsAffected} tests affected`;
 						} else {
-							vscode.window.showInformationMessage(
-								`Impact analysis complete: ${filesChanged} files changed, no tests affected`
-							);
+							summaryMessage += ', no tests affected';
+						}
+
+						// Show message with appropriate severity
+						if (failedFiles.length > 0) {
+							summaryMessage += `\n\n⚠️ ${failedFiles.length} file(s) failed: ${failedFiles.join(', ')}`;
+							vscode.window.showWarningMessage(summaryMessage);
+						} else {
+							vscode.window.showInformationMessage(summaryMessage);
 						}
 					} catch (error) {
 						console.error('Error during impact analysis:', error);

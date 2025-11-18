@@ -110,7 +110,6 @@ export interface RegenerationResult {
 	test: AffectedTest;
 	oldCode: string;
 	newCode: string;
-	accepted?: boolean;
 }
 
 /**
