@@ -83,51 +83,36 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 	context.subscriptions.push(visibleEditorsListener);
 
+	// Shared function for quality analysis execution
+	const executeQualityAnalysis = async () => {
+		qualityStatusBar.showAnalyzing();
+		await analyzeCommand.execute();
+		const result = qualityTreeProvider.getAnalysisResult();
+		if (result) {
+			const criticalCount = result.metrics.severity_breakdown?.error || 0;
+			qualityStatusBar.showResults(result.issues.length, criticalCount);
+
+			// Update decorations and suggestions
+			if (QualityConfigManager.getEnableInlineDecorations()) {
+				issueDecorator.updateIssues(result.issues);
+			}
+			if (QualityConfigManager.getEnableCodeActions()) {
+				suggestionProvider.updateIssues(result.issues);
+			}
+		} else {
+			qualityStatusBar.showIdle();
+		}
+	};
+
 	// Register quality analysis commands
 	const analyzeQualityCommand = vscode.commands.registerCommand(
 		'llt-assistant.analyzeQuality',
-		async () => {
-			qualityStatusBar.showAnalyzing();
-			await analyzeCommand.execute();
-			const result = qualityTreeProvider.getAnalysisResult();
-			if (result) {
-				const criticalCount = result.metrics.severity_breakdown?.error || 0;
-				qualityStatusBar.showResults(result.issues.length, criticalCount);
-
-				// Update decorations and suggestions
-				if (QualityConfigManager.getEnableInlineDecorations()) {
-					issueDecorator.updateIssues(result.issues);
-				}
-				if (QualityConfigManager.getEnableCodeActions()) {
-					suggestionProvider.updateIssues(result.issues);
-				}
-			} else {
-				qualityStatusBar.showIdle();
-			}
-		}
+		executeQualityAnalysis
 	);
 
 	const refreshQualityViewCommand = vscode.commands.registerCommand(
 		'llt-assistant.refreshQualityView',
-		async () => {
-			qualityStatusBar.showAnalyzing();
-			await analyzeCommand.execute();
-			const result = qualityTreeProvider.getAnalysisResult();
-			if (result) {
-				const criticalCount = result.metrics.severity_breakdown?.error || 0;
-				qualityStatusBar.showResults(result.issues.length, criticalCount);
-
-				// Update decorations and suggestions
-				if (QualityConfigManager.getEnableInlineDecorations()) {
-					issueDecorator.updateIssues(result.issues);
-				}
-				if (QualityConfigManager.getEnableCodeActions()) {
-					suggestionProvider.updateIssues(result.issues);
-				}
-			} else {
-				qualityStatusBar.showIdle();
-			}
-		}
+		executeQualityAnalysis
 	);
 
 	const clearQualityIssuesCommand = vscode.commands.registerCommand(
@@ -144,21 +129,40 @@ export function activate(context: vscode.ExtensionContext) {
 	const showIssueCommand = vscode.commands.registerCommand(
 		'llt-assistant.showIssue',
 		async (issue) => {
-			// Navigate to the issue location in the file
-			const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
-			if (!workspaceRoot) {
-				return;
+			try {
+				// Navigate to the issue location in the file
+				const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+				if (!workspaceRoot) {
+					vscode.window.showErrorMessage('No workspace folder open');
+					return;
+				}
+
+				const filePath = vscode.Uri.file(`${workspaceRoot}/${issue.file}`);
+
+				// Check if file exists
+				try {
+					await vscode.workspace.fs.stat(filePath);
+				} catch {
+					vscode.window.showErrorMessage(`File not found: ${issue.file}`);
+					return;
+				}
+
+				const document = await vscode.workspace.openTextDocument(filePath);
+				const editor = await vscode.window.showTextDocument(document);
+
+				// Highlight the line with the issue
+				const line = Math.max(0, issue.line - 1); // Convert to 0-indexed
+				if (line >= document.lineCount) {
+					vscode.window.showErrorMessage(`Line ${issue.line} exceeds file length`);
+					return;
+				}
+
+				const range = new vscode.Range(line, 0, line, document.lineAt(line).text.length);
+				editor.selection = new vscode.Selection(range.start, range.end);
+				editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
+			} catch (error) {
+				vscode.window.showErrorMessage(`Failed to show issue: ${error instanceof Error ? error.message : String(error)}`);
 			}
-
-			const filePath = vscode.Uri.file(`${workspaceRoot}/${issue.file}`);
-			const document = await vscode.workspace.openTextDocument(filePath);
-			const editor = await vscode.window.showTextDocument(document);
-
-			// Highlight the line with the issue
-			const line = issue.line - 1; // Convert to 0-indexed
-			const range = new vscode.Range(line, 0, line, document.lineAt(line).text.length);
-			editor.selection = new vscode.Selection(range.start, range.end);
-			editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
 		}
 	);
 
@@ -176,6 +180,22 @@ export function activate(context: vscode.ExtensionContext) {
 		qualityBackendClient.updateBackendUrl();
 	});
 	context.subscriptions.push(configChangeListener);
+
+	// Auto-analyze feature: analyze when opening test files
+	if (QualityConfigManager.getAutoAnalyze()) {
+		const autoAnalyzeListener = vscode.workspace.onDidOpenTextDocument(async (document) => {
+			if (document.languageId === 'python') {
+				const fileName = document.fileName.toLowerCase();
+				if (fileName.includes('test_') || fileName.endsWith('_test.py')) {
+					// Debounce to avoid multiple simultaneous analyses
+					setTimeout(() => {
+						executeQualityAnalysis();
+					}, 1000);
+				}
+			}
+		});
+		context.subscriptions.push(autoAnalyzeListener);
+	}
 }
 
 /**

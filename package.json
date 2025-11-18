@@ -1,7 +1,7 @@
 {
   "name": "llt-assistant",
-  "displayName": "LLT-assistant",
-  "description": "A tool to help developer improve their low code.",
+  "displayName": "LLT Assistant",
+  "description": "AI-powered pytest test generator and quality analyzer. Generate comprehensive unit tests and detect quality issues in Python test code.",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.105.0"

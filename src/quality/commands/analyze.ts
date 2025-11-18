@@ -161,7 +161,7 @@ export class AnalyzeQualityCommand {
 		};
 
 		const clientMetadata = {
-			extension_version: vscode.extensions.getExtension('undefined.llt-assistant')?.packageJSON.version || '0.0.1',
+			extension_version: vscode.extensions.getExtension('llt-assistant')?.packageJSON.version || '0.0.1',
 			vscode_version: vscode.version,
 			platform: process.platform,
 			workspace_hash: this.getWorkspaceHash()

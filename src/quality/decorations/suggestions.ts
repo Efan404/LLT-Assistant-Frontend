@@ -4,6 +4,7 @@
  */
 
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { QualityIssue } from '../api/types';
 
 export class QualitySuggestionProvider implements vscode.CodeActionProvider {
@@ -48,9 +49,9 @@ export class QualitySuggestionProvider implements vscode.CodeActionProvider {
 			return;
 		}
 
-		const relativePath = document.uri.fsPath
-			.replace(workspaceRoot, '')
-			.replace(/^\//, '');
+		// Use path.relative for cross-platform compatibility
+		const relativePath = path.relative(workspaceRoot, document.uri.fsPath)
+			.replace(/\\/g, '/'); // Normalize to forward slashes
 
 		const issues = this.issuesByFile.get(relativePath) || [];
 
@@ -221,7 +222,7 @@ export class QualitySuggestionProvider implements vscode.CodeActionProvider {
 		}
 
 		const lineText = document.lineAt(line).text;
-		const startChar = issue.column > 0 ? issue.column : lineText.search(/\S/);
+		const startChar = Math.max(0, issue.column > 0 ? issue.column : lineText.search(/\S/));
 
 		const range = new vscode.Range(
 			new vscode.Position(line, startChar),

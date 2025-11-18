@@ -4,6 +4,7 @@
  */
 
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { QualityIssue, IssueSeverity } from '../api/types';
 
 export class IssueDecorator {
@@ -83,9 +84,9 @@ export class IssueDecorator {
 			return;
 		}
 
-		const relativePath = editor.document.uri.fsPath
-			.replace(workspaceRoot, '')
-			.replace(/^\//, '');
+		// Use path.relative for cross-platform compatibility
+		const relativePath = path.relative(workspaceRoot, editor.document.uri.fsPath)
+			.replace(/\\/g, '/'); // Normalize to forward slashes
 
 		const issues = this.issuesByFile.get(relativePath) || [];
 
@@ -136,7 +137,7 @@ export class IssueDecorator {
 
 		// Find the range to underline
 		// If we have column info, use it; otherwise underline the whole line
-		const startChar = issue.column > 0 ? issue.column : lineText.search(/\S/);
+		const startChar = Math.max(0, issue.column > 0 ? issue.column : lineText.search(/\S/));
 		const endChar = lineText.length;
 
 		const range = new vscode.Range(

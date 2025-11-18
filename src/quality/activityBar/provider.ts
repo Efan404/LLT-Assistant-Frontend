@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import { AnalyzeQualityResponse, QualityIssue, IssueSeverity } from '../api/types';
 import { TreeItemType, QualityTreeItem } from './types';
+import { QualityConfigManager } from '../utils/config';
 
 export class QualityTreeProvider implements vscode.TreeDataProvider<QualityTreeItem> {
 	private _onDidChangeTreeData: vscode.EventEmitter<QualityTreeItem | undefined> =
@@ -77,6 +78,20 @@ export class QualityTreeProvider implements vscode.TreeDataProvider<QualityTreeI
 	}
 
 	/**
+	 * Get filtered issues based on severity filter configuration
+	 */
+	private getFilteredIssues(): QualityIssue[] {
+		if (!this.analysisResult) {
+			return [];
+		}
+
+		const severityFilter = QualityConfigManager.getSeverityFilter();
+		return this.analysisResult.issues.filter(issue =>
+			severityFilter.includes(issue.severity)
+		);
+	}
+
+	/**
 	 * Get root level items (summary + files)
 	 */
 	private getRootItems(): QualityTreeItem[] {
@@ -85,7 +100,7 @@ export class QualityTreeProvider implements vscode.TreeDataProvider<QualityTreeI
 		// Add summary item
 		items.push(this.createSummaryItem());
 
-		// Group issues by file
+		// Group issues by file (with severity filtering)
 		const fileMap = this.groupIssuesByFile();
 
 		// Add file items
@@ -209,12 +224,13 @@ export class QualityTreeProvider implements vscode.TreeDataProvider<QualityTreeI
 	}
 
 	/**
-	 * Group issues by file
+	 * Group issues by file (with severity filtering applied)
 	 */
 	private groupIssuesByFile(): Map<string, QualityIssue[]> {
 		const fileMap = new Map<string, QualityIssue[]>();
+		const filteredIssues = this.getFilteredIssues();
 
-		for (const issue of this.analysisResult!.issues) {
+		for (const issue of filteredIssues) {
 			if (!fileMap.has(issue.file)) {
 				fileMap.set(issue.file, []);
 			}
@@ -225,12 +241,11 @@ export class QualityTreeProvider implements vscode.TreeDataProvider<QualityTreeI
 	}
 
 	/**
-	 * Get issues for a specific file
+	 * Get issues for a specific file (with severity filtering applied)
 	 */
 	private getIssuesForFile(filePath: string): QualityTreeItem[] {
-		const issues = this.analysisResult!.issues.filter(
-			i => i.file === filePath
-		);
+		const filteredIssues = this.getFilteredIssues();
+		const issues = filteredIssues.filter(i => i.file === filePath);
 
 		// Sort by line number
 		issues.sort((a, b) => a.line - b.line);
