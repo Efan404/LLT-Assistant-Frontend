@@ -14,6 +14,7 @@
     "onLanguage:python",
     "onView:lltQualityExplorer",
     "onView:lltCoverageExplorer",
+    "onView:lltImpactExplorer",
     "workspaceContains:**/test_*.py",
     "workspaceContains:**/coverage.xml"
   ],
@@ -40,6 +41,12 @@
           "name": "Test Quality",
           "icon": "resources/icons/llt-icon.svg",
           "contextualTitle": "LLT Test Quality Analysis"
+        },
+        {
+          "id": "lltImpactExplorer",
+          "name": "Test Impact",
+          "icon": "resources/icons/llt-icon.svg",
+          "contextualTitle": "LLT Test Impact Analysis"
         }
       ],
       "llt-coverage": [
@@ -105,6 +112,31 @@
       {
         "command": "llt-assistant.goToLine",
         "title": "LLT: Go to Line"
+      },
+      {
+        "command": "llt-assistant.analyzeImpact",
+        "title": "LLT: Analyze Changes",
+        "icon": "$(git-compare)"
+      },
+      {
+        "command": "llt-assistant.refreshImpactView",
+        "title": "LLT: Refresh Impact View",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "llt-assistant.clearImpactAnalysis",
+        "title": "LLT: Clear Impact Analysis",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "llt-assistant.switchImpactView",
+        "title": "LLT: Switch View",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "llt-assistant.regenerateTests",
+        "title": "LLT: Regenerate Affected Tests",
+        "icon": "$(sync)"
       }
     ],
     "menus": {
@@ -138,6 +170,26 @@
           "command": "llt-assistant.clearCoverage",
           "when": "view == lltCoverageExplorer",
           "group": "navigation@3"
+        },
+        {
+          "command": "llt-assistant.analyzeImpact",
+          "when": "view == lltImpactExplorer",
+          "group": "navigation@1"
+        },
+        {
+          "command": "llt-assistant.refreshImpactView",
+          "when": "view == lltImpactExplorer",
+          "group": "navigation@2"
+        },
+        {
+          "command": "llt-assistant.switchImpactView",
+          "when": "view == lltImpactExplorer",
+          "group": "navigation@3"
+        },
+        {
+          "command": "llt-assistant.clearImpactAnalysis",
+          "when": "view == lltImpactExplorer",
+          "group": "navigation@4"
         }
       ],
       "editor/context": [

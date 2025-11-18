@@ -26,6 +26,12 @@ import {
 	CoverageTreeDataProvider,
 	CoverageCommands
 } from './coverage';
+import {
+	ImpactAnalysisClient,
+	ImpactTreeProvider,
+	AnalyzeImpactCommand,
+	RegenerationDialogManager
+} from './impact';
 
 /**
  * Extension activation entry point
@@ -268,6 +274,97 @@ export function activate(context: vscode.ExtensionContext) {
 		showCoverageImprovementCommand,
 		goToLineCommand,
 		coverageCommands
+	);
+
+	// ===== Impact Analysis Feature =====
+	// Initialize impact analysis components
+	const impactClient = new ImpactAnalysisClient();
+	const impactTreeProvider = new ImpactTreeProvider();
+	const impactAnalyzeCommand = new AnalyzeImpactCommand(impactClient, impactTreeProvider);
+	const regenerationDialogManager = new RegenerationDialogManager();
+
+	// Register tree view for impact analysis
+	const impactTreeView = vscode.window.createTreeView('lltImpactExplorer', {
+		treeDataProvider: impactTreeProvider,
+		showCollapseAll: true
+	});
+	context.subscriptions.push(impactTreeView);
+
+	// Register impact analysis commands
+	const analyzeImpactCommand = vscode.commands.registerCommand(
+		'llt-assistant.analyzeImpact',
+		() => impactAnalyzeCommand.execute()
+	);
+
+	const refreshImpactViewCommand = vscode.commands.registerCommand(
+		'llt-assistant.refreshImpactView',
+		() => impactAnalyzeCommand.execute()
+	);
+
+	const clearImpactAnalysisCommand = vscode.commands.registerCommand(
+		'llt-assistant.clearImpactAnalysis',
+		() => {
+			impactTreeProvider.clear();
+			vscode.window.showInformationMessage('Impact analysis cleared');
+		}
+	);
+
+	const switchImpactViewCommand = vscode.commands.registerCommand(
+		'llt-assistant.switchImpactView',
+		async () => {
+			const currentMode = impactTreeProvider.getCurrentViewMode();
+			const newMode = currentMode === 'file-to-tests' ? 'tests-to-files' : 'file-to-tests';
+			impactTreeProvider.switchView(newMode);
+
+			const modeLabel = newMode === 'file-to-tests' ? 'File → Tests' : 'Tests ← Files';
+			vscode.window.showInformationMessage(`Switched to ${modeLabel} view`);
+		}
+	);
+
+	const regenerateTestsCommand = vscode.commands.registerCommand(
+		'llt-assistant.regenerateTests',
+		async () => {
+			const result = impactTreeProvider.getAnalysisResult();
+			if (!result) {
+				vscode.window.showWarningMessage('No impact analysis available. Run "Analyze Changes" first.');
+				return;
+			}
+
+			if (result.affected_tests.length === 0) {
+				vscode.window.showInformationMessage('No affected tests to regenerate');
+				return;
+			}
+
+			// Show decision dialog
+			const decision = await regenerationDialogManager.showDecisionDialog(
+				result.affected_tests,
+				result
+			);
+
+			if (decision.cancelled) {
+				vscode.window.showInformationMessage('Test regeneration cancelled');
+				return;
+			}
+
+			if (!decision.confirmed) {
+				vscode.window.showInformationMessage('No action taken. Tests remain unchanged.');
+				return;
+			}
+
+			// Regenerate tests
+			await regenerationDialogManager.regenerateTests(
+				result.affected_tests,
+				result
+			);
+		}
+	);
+
+	context.subscriptions.push(
+		analyzeImpactCommand,
+		refreshImpactViewCommand,
+		clearImpactAnalysisCommand,
+		switchImpactViewCommand,
+		regenerateTestsCommand
 	);
 }
 
