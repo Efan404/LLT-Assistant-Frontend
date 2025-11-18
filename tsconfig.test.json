@@ -4,11 +4,14 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "types": ["node", "mocha", "chai", "sinon"]
   },
   "ts-node": {
+    "transpileOnly": true,
     "compilerOptions": {
-      "module": "commonjs"
+      "module": "commonjs",
+      "moduleResolution": "node"
     }
   },
   "include": [

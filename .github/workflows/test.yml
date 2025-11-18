@@ -125,10 +125,12 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage/lcov.info
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
+          verbose: true
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
@@ -154,19 +156,29 @@ jobs:
         with:
           node-version: 20.x
 
+      - name: Setup Python (for native modules)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install setuptools (Python 3.12+ compatibility)
+        run: pip install setuptools
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 8
           run_install: false
 
-      - name: Install dependencies
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        env:
+          PYTHON: python3.11
         run: pnpm install
 
-      - name: Install Python (for AST analysis)
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+      - name: Install dependencies (Linux/Windows)
+        if: runner.os != 'macOS'
+        run: pnpm install
 
       - name: Setup Xvfb (Linux only)
         if: runner.os == 'Linux'

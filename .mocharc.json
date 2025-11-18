@@ -8,5 +8,8 @@
   "color": true,
   "recursive": true,
   "reporter": "spec",
-  "ui": "tdd"
+  "ui": "tdd",
+  "ts-node": {
+    "project": "tsconfig.test.json"
+  }
 }
