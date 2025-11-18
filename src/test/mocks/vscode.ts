@@ -5,7 +5,7 @@
  * to enable unit testing without requiring the full VSCode environment.
  */
 
-import { EventEmitter } from 'events';
+import { EventEmitter as NodeEventEmitter } from 'events';
 import * as sinon from 'sinon';
 
 /**
@@ -288,7 +288,7 @@ export const mockWindow = {
   }),
   activeTextEditor: undefined as MockTextEditor | undefined,
   visibleTextEditors: [] as MockTextEditor[],
-  onDidChangeActiveTextEditor: new EventEmitter().on.bind(new EventEmitter()),
+  onDidChangeActiveTextEditor: new NodeEventEmitter().on.bind(new NodeEventEmitter()),
 };
 
 /**
@@ -302,10 +302,10 @@ export const mockWorkspace = {
     update: sinon.stub().resolves(),
   }),
   workspaceFolders: [] as any[],
-  onDidChangeConfiguration: new EventEmitter().on.bind(new EventEmitter()),
-  onDidSaveTextDocument: new EventEmitter().on.bind(new EventEmitter()),
-  onDidOpenTextDocument: new EventEmitter().on.bind(new EventEmitter()),
-  onDidCloseTextDocument: new EventEmitter().on.bind(new EventEmitter()),
+  onDidChangeConfiguration: new NodeEventEmitter().on.bind(new NodeEventEmitter()),
+  onDidSaveTextDocument: new NodeEventEmitter().on.bind(new NodeEventEmitter()),
+  onDidOpenTextDocument: new NodeEventEmitter().on.bind(new NodeEventEmitter()),
+  onDidCloseTextDocument: new NodeEventEmitter().on.bind(new NodeEventEmitter()),
   findFiles: sinon.stub().resolves([]),
   fs: {
     readFile: sinon.stub().resolves(Buffer.from('')),
@@ -391,6 +391,70 @@ export class CodeAction {
 }
 
 /**
+ * Mock MarkdownString
+ */
+export class MarkdownString {
+  value: string;
+  isTrusted?: boolean;
+
+  constructor(value: string = '', isTrustedOrOptions?: boolean | { supportThemeIcons?: boolean; isTrusted?: boolean }) {
+    this.value = value;
+    if (typeof isTrustedOrOptions === 'boolean') {
+      this.isTrusted = isTrustedOrOptions;
+    } else if (isTrustedOrOptions) {
+      this.isTrusted = isTrustedOrOptions.isTrusted;
+    }
+  }
+
+  appendText(value: string): MarkdownString {
+    this.value += value;
+    return this;
+  }
+
+  appendMarkdown(value: string): MarkdownString {
+    this.value += value;
+    return this;
+  }
+
+  appendCodeblock(value: string, language: string = ''): MarkdownString {
+    this.value += `\`\`\`${language}\n${value}\n\`\`\`\n`;
+    return this;
+  }
+}
+
+/**
+ * Mock VSCode EventEmitter
+ * VSCode uses a different EventEmitter API than Node.js
+ */
+export class EventEmitter<T = any> {
+  private listeners: Array<(e: T) => any> = [];
+
+  get event() {
+    return (listener: (e: T) => any, thisArgs?: any, disposables?: any[]): { dispose: () => void } => {
+      this.listeners.push(listener);
+      const dispose = () => {
+        const index = this.listeners.indexOf(listener);
+        if (index > -1) {
+          this.listeners.splice(index, 1);
+        }
+      };
+      if (disposables) {
+        disposables.push({ dispose });
+      }
+      return { dispose };
+    };
+  }
+
+  fire(data: T): void {
+    this.listeners.forEach(listener => listener(data));
+  }
+
+  dispose(): void {
+    this.listeners = [];
+  }
+}
+
+/**
  * Reset all mocks - call this in beforeEach
  */
 export function resetAllMocks(): void {
@@ -412,3 +476,28 @@ export function resetAllMocks(): void {
   mockCommands.registerCommand.reset();
   mockCommands.executeCommand.reset();
 }
+
+// Export namespace objects for `import * as vscode` pattern
+export const window = mockWindow;
+export const workspace = mockWorkspace;
+export const languages = mockLanguages;
+export const commands = mockCommands;
+
+// Export as default for module replacement
+export default {
+  Uri,
+  Range,
+  Position,
+  Diagnostic,
+  DiagnosticSeverity,
+  MarkdownString,
+  EventEmitter,
+  TreeItem,
+  TreeItemCollapsibleState,
+  CodeAction,
+  CodeActionKind,
+  window: mockWindow,
+  workspace: mockWorkspace,
+  languages: mockLanguages,
+  commands: mockCommands,
+};
