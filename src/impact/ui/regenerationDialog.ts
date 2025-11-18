@@ -189,30 +189,97 @@ export class RegenerationDialogManager {
 	}
 
 	/**
+	 * Find source file and function for a test
+	 * Returns the most likely matching function change for this specific test
+	 */
+	private findMatchingFunctionChange(
+		test: AffectedTest,
+		changeContext: ChangeDetectionResult
+	): { filePath: string; functionName: string } | null {
+		const functions = changeContext.change_summary.functions_changed;
+
+		if (functions.length === 0) {
+			return null;
+		}
+
+		// Step 1: Infer expected function name from test name
+		// test_add -> add
+		// test_calculate_sum -> calculate_sum
+		const inferredFunctionName = test.test_name.replace(/^test_/, '');
+
+		// Step 2: Try to match test file to source file
+		// test_calculator.py -> calculator.py or src/calculator.py
+		const testFileName = test.file_path.split('/').pop() || '';
+		const expectedSourceFileName = testFileName.replace(/^test_/, '');
+
+		// Step 3: Find best matching function change
+		// Priority 1: Match both file name AND function name
+		for (const func of functions) {
+			const sourceFileName = func.file_path.split('/').pop() || '';
+			if (sourceFileName === expectedSourceFileName && func.function_name === inferredFunctionName) {
+				return {
+					filePath: func.file_path,
+					functionName: func.function_name
+				};
+			}
+		}
+
+		// Priority 2: Match only function name (file might be in different location)
+		for (const func of functions) {
+			if (func.function_name === inferredFunctionName) {
+				return {
+					filePath: func.file_path,
+					functionName: func.function_name
+				};
+			}
+		}
+
+		// Priority 3: Match only file name (function name might be different)
+		for (const func of functions) {
+			const sourceFileName = func.file_path.split('/').pop() || '';
+			if (sourceFileName === expectedSourceFileName) {
+				return {
+					filePath: func.file_path,
+					functionName: func.function_name
+				};
+			}
+		}
+
+		// Fallback: Use the first function change and log a warning
+		console.warn(
+			`[Impact Analysis] Could not find matching function for test ${test.test_name}. ` +
+			`Using fallback: ${functions[0].file_path}::${functions[0].function_name}`
+		);
+		return {
+			filePath: functions[0].file_path,
+			functionName: functions[0].function_name
+		};
+	}
+
+	/**
 	 * Find source file for a test
 	 */
 	private findSourceFile(test: AffectedTest, changeContext: ChangeDetectionResult): string | null {
-		// Find the first changed function
-		if (changeContext.change_summary.functions_changed.length > 0) {
-			return changeContext.change_summary.functions_changed[0].file_path;
-		}
-		return null;
+		const match = this.findMatchingFunctionChange(test, changeContext);
+		return match?.filePath || null;
 	}
 
 	/**
 	 * Extract function name from test
 	 */
 	private extractFunctionName(test: AffectedTest, changeContext: ChangeDetectionResult): string {
-		// Get the first changed function
-		if (changeContext.change_summary.functions_changed.length > 0) {
-			return changeContext.change_summary.functions_changed[0].function_name;
+		const match = this.findMatchingFunctionChange(test, changeContext);
+		if (match) {
+			return match.functionName;
 		}
 
-		// Fallback: try to infer from test name
-		// test_add -> add
-		// test_calculate_sum -> calculate_sum
-		const testName = test.test_name.replace(/^test_/, '');
-		return testName;
+		// Last resort fallback: infer from test name
+		const inferredName = test.test_name.replace(/^test_/, '');
+		console.warn(
+			`[Impact Analysis] Could not match test ${test.test_name} to any changed function. ` +
+			`Using inferred name: ${inferredName}`
+		);
+		return inferredName;
 	}
 
 	/**
