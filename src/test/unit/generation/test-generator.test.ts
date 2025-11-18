@@ -3,7 +3,6 @@
  */
 
 import { expect } from 'chai';
-import * as sinon from 'sinon';
 
 suite('Test Generator Unit Tests', () => {
   suite('Scenario Generation', () => {

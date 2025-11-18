@@ -6,10 +6,7 @@ import { expect } from 'chai';
 import * as sinon from 'sinon';
 import axios from 'axios';
 import { QualityBackendClient } from '../../../quality/api/client';
-import {
-  createMockAnalysisResponse,
-  createMockAPIError,
-} from '../../helpers/factories';
+import { createMockAnalysisResponse } from '../../helpers/factories';
 import { mockWorkspace, resetAllMocks } from '../../mocks/vscode';
 
 suite('QualityBackendClient', () => {
@@ -71,7 +68,7 @@ suite('QualityBackendClient', () => {
       mockWorkspace.getConfiguration.returns({
         get: sinon.stub().returns(undefined),
       });
-      const defaultClient = new QualityBackendClient();
+      new QualityBackendClient();
       expect(axiosCreateStub.calledTwice).to.be.true;
     });
   });

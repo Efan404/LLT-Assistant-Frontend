@@ -3,7 +3,6 @@
  */
 
 import { expect } from 'chai';
-import * as sinon from 'sinon';
 
 suite('LLMClient Unit Tests', () => {
   suite('OpenAI Client', () => {

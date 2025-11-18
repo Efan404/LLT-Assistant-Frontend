@@ -423,6 +423,33 @@ export class MarkdownString {
 }
 
 /**
+ * Mock ThemeColor
+ */
+export class ThemeColor {
+  id: string;
+
+  constructor(id: string) {
+    this.id = id;
+  }
+}
+
+/**
+ * Mock ThemeIcon
+ */
+export class ThemeIcon {
+  id: string;
+  color?: ThemeColor;
+
+  constructor(id: string, color?: ThemeColor) {
+    this.id = id;
+    this.color = color;
+  }
+
+  static File = new ThemeIcon('file');
+  static Folder = new ThemeIcon('folder');
+}
+
+/**
  * Mock VSCode EventEmitter
  * VSCode uses a different EventEmitter API than Node.js
  */
@@ -491,6 +518,8 @@ export default {
   Diagnostic,
   DiagnosticSeverity,
   MarkdownString,
+  ThemeColor,
+  ThemeIcon,
   EventEmitter,
   TreeItem,
   TreeItemCollapsibleState,
