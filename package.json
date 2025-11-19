@@ -377,7 +377,7 @@
     "pretest": "pnpm run compile-tests && pnpm run compile && pnpm run lint",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "pnpm run test:unit && pnpm run test:integration",
+    "test": "pnpm run test:unit && pnpm run test:property",
     "test:unit": "cross-env TS_NODE_PROJECT=tsconfig.test.json mocha --config .mocharc.json",
     "test:unit:watch": "cross-env TS_NODE_PROJECT=tsconfig.test.json mocha --config .mocharc.json --watch",
     "test:unit:coverage": "nyc pnpm run test:unit",
