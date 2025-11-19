@@ -1,18 +1,25 @@
 /**
- * Backend API Client for LLT Quality Analysis
+ * Backend API Client for Coverage Test Generation
  */
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import * as vscode from 'vscode';
 import {
-	AnalyzeQualityRequest,
-	AnalyzeQualityResponse,
-	BackendError,
-	HealthCheckResponse
+	GenerateCoverageTestRequest,
+	GenerateCoverageTestResponse,
+	BatchGenerateCoverageTestRequest,
+	BatchGenerateCoverageTestResponse,
+	CoverageBackendError
 } from './types';
-import { QUALITY_DEFAULTS } from '../utils/constants';
 
-export class QualityBackendClient {
+const DEFAULTS = {
+	BACKEND_URL: 'https://llt-assistant.fly.dev/api/v1',
+	TIMEOUT_MS: 60000, // 60 seconds for test generation (longer than quality analysis)
+	RETRY_MAX_ATTEMPTS: 3,
+	RETRY_BASE_DELAY_MS: 2000 // 2 seconds
+};
+
+export class CoverageBackendClient {
 	private client: AxiosInstance;
 	private baseUrl: string;
 
@@ -20,7 +27,7 @@ export class QualityBackendClient {
 		this.baseUrl = this.getBackendUrl();
 		this.client = axios.create({
 			baseURL: this.baseUrl,
-			timeout: 30000, // 30 seconds
+			timeout: DEFAULTS.TIMEOUT_MS,
 			headers: {
 				'Content-Type': 'application/json'
 			}
@@ -33,8 +40,8 @@ export class QualityBackendClient {
 	 * Get backend URL from VSCode configuration
 	 */
 	private getBackendUrl(): string {
-		const config = vscode.workspace.getConfiguration('llt-assistant.quality');
-		return config.get('backendUrl', QUALITY_DEFAULTS.BACKEND_URL);
+		const config = vscode.workspace.getConfiguration('llt-assistant');
+		return config.get('backendUrl', DEFAULTS.BACKEND_URL);
 	}
 
 	/**
@@ -44,7 +51,7 @@ export class QualityBackendClient {
 		// Request interceptor
 		this.client.interceptors.request.use(
 			(config) => {
-				console.log(`[LLT Quality API] ${config.method?.toUpperCase()} ${config.url}`);
+				console.log(`[LLT Coverage API] ${config.method?.toUpperCase()} ${config.url}`);
 				return config;
 			},
 			(error) => {
@@ -56,7 +63,7 @@ export class QualityBackendClient {
 		this.client.interceptors.response.use(
 			(response) => {
 				console.log(
-					`[LLT Quality API] Response: ${response.status} ${response.statusText}`
+					`[LLT Coverage API] Response: ${response.status} ${response.statusText}`
 				);
 				return response;
 			},
@@ -67,18 +74,20 @@ export class QualityBackendClient {
 	}
 
 	/**
-	 * Analyze test files for quality issues
+	 * Generate tests for a specific uncovered function
 	 *
-	 * POST /workflows/analyze-quality
+	 * POST /workflows/generate-coverage-test
 	 */
-	async analyzeQuality(request: AnalyzeQualityRequest): Promise<AnalyzeQualityResponse> {
-		const maxRetries = QUALITY_DEFAULTS.RETRY_MAX_ATTEMPTS;
+	async generateCoverageTest(
+		request: GenerateCoverageTestRequest
+	): Promise<GenerateCoverageTestResponse> {
+		const maxRetries = DEFAULTS.RETRY_MAX_ATTEMPTS;
 		let lastError: any;
 
 		for (let attempt = 0; attempt < maxRetries; attempt++) {
 			try {
-				const response = await this.client.post<AnalyzeQualityResponse>(
-					'/workflows/analyze-quality',
+				const response = await this.client.post<GenerateCoverageTestResponse>(
+					'/workflows/generate-coverage-test',
 					request
 				);
 
@@ -86,9 +95,9 @@ export class QualityBackendClient {
 			} catch (error) {
 				lastError = error;
 
-				// Check if error is retryable (network errors, timeouts, 5xx errors)
+				// Check if error is retryable
 				if (!this.isRetryableError(error)) {
-					throw this.handleApiError(error);
+					throw error;
 				}
 
 				// Don't retry on last attempt
@@ -96,14 +105,66 @@ export class QualityBackendClient {
 					break;
 				}
 
-				// Exponential backoff: 1s, 2s, 4s
-				const delayMs = Math.pow(2, attempt) * QUALITY_DEFAULTS.RETRY_BASE_DELAY_MS;
-				console.log(`[LLT Quality API] Retry attempt ${attempt + 1}/${maxRetries} after ${delayMs}ms`);
+				// Exponential backoff: 2s, 4s, 8s
+				const delayMs = Math.pow(2, attempt) * DEFAULTS.RETRY_BASE_DELAY_MS;
+				console.log(
+					`[LLT Coverage API] Retry attempt ${attempt + 1}/${maxRetries} after ${delayMs}ms`
+				);
 				await this.delay(delayMs);
 			}
 		}
 
-		throw this.handleApiError(lastError);
+		throw lastError;
+	}
+
+	/**
+	 * Batch generate tests for multiple functions
+	 *
+	 * POST /workflows/batch-generate-coverage-tests
+	 */
+	async batchGenerateCoverageTests(
+		request: BatchGenerateCoverageTestRequest
+	): Promise<BatchGenerateCoverageTestResponse> {
+		const maxRetries = DEFAULTS.RETRY_MAX_ATTEMPTS;
+		let lastError: any;
+
+		// Use longer timeout for batch operations
+		const originalTimeout = this.client.defaults.timeout;
+		this.client.defaults.timeout = 120000; // 2 minutes
+
+		try {
+			for (let attempt = 0; attempt < maxRetries; attempt++) {
+				try {
+					const response = await this.client.post<BatchGenerateCoverageTestResponse>(
+						'/workflows/batch-generate-coverage-tests',
+						request
+					);
+
+					return response.data;
+				} catch (error) {
+					lastError = error;
+
+					if (!this.isRetryableError(error)) {
+						throw error;
+					}
+
+					if (attempt === maxRetries - 1) {
+						break;
+					}
+
+					const delayMs = Math.pow(2, attempt) * DEFAULTS.RETRY_BASE_DELAY_MS;
+					console.log(
+						`[LLT Coverage API] Batch retry attempt ${attempt + 1}/${maxRetries} after ${delayMs}ms`
+					);
+					await this.delay(delayMs);
+				}
+			}
+
+			throw lastError;
+		} finally {
+			// Restore original timeout
+			this.client.defaults.timeout = originalTimeout;
+		}
 	}
 
 	/**
@@ -113,7 +174,7 @@ export class QualityBackendClient {
 	 */
 	async healthCheck(): Promise<boolean> {
 		try {
-			const response = await this.client.get<HealthCheckResponse>('/health');
+			const response = await this.client.get('/health');
 			return response.status === 200;
 		} catch (error) {
 			return false;
@@ -123,7 +184,7 @@ export class QualityBackendClient {
 	/**
 	 * Handle API errors and convert to user-friendly messages
 	 */
-	private handleApiError(error: any): BackendError {
+	private handleApiError(error: any): CoverageBackendError {
 		if (axios.isAxiosError(error)) {
 			const axiosError = error as AxiosError;
 
@@ -170,7 +231,7 @@ export class QualityBackendClient {
 
 			// Generic HTTP error
 			return {
-				type: 'http',
+				type: 'unknown',
 				message: `HTTP ${status} error`,
 				detail: data?.detail || axiosError.message,
 				statusCode: status
@@ -182,7 +243,7 @@ export class QualityBackendClient {
 			return {
 				type: 'timeout',
 				message: 'Request timeout',
-				detail: 'Backend took too long to respond (>30s)',
+				detail: 'Backend took too long to respond',
 				statusCode: 0
 			};
 		}
@@ -197,7 +258,7 @@ export class QualityBackendClient {
 	}
 
 	/**
-	 * Format FastAPI validation errors into readable message
+	 * Format validation errors into readable message
 	 */
 	private formatValidationErrors(errors: any[]): string {
 		if (!errors || !Array.isArray(errors)) {
@@ -210,7 +271,6 @@ export class QualityBackendClient {
 
 		return errors
 			.map(err => {
-				// Ensure err.loc is array before calling join
 				const field = Array.isArray(err.loc) ? err.loc.join('.') : 'unknown';
 				const message = err.msg || 'invalid value';
 				return `${field}: ${message}`;
@@ -220,14 +280,13 @@ export class QualityBackendClient {
 
 	/**
 	 * Update backend URL from configuration
-	 * Call this when configuration changes
 	 */
 	public updateBackendUrl(): void {
 		const newUrl = this.getBackendUrl();
 		if (newUrl !== this.baseUrl) {
 			this.baseUrl = newUrl;
 			this.client.defaults.baseURL = newUrl;
-			console.log(`[LLT Quality API] Backend URL updated to: ${newUrl}`);
+			console.log(`[LLT Coverage API] Backend URL updated to: ${newUrl}`);
 		}
 	}
 
