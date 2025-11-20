@@ -3,7 +3,7 @@ import { ChatMessage, LLMCallOptions, LLMResponse, TokenUsage, ApiProvider } fro
 import { ApiErrorHandler } from '../utils/errorHandler'; // Update this path accordingly
 
 /**
- * HTTP client for calling LLM APIs (OpenAI and Claude)
+ * HTTP client for calling LLM APIs (OpenAI, Claude, DeepSeek, and OpenRouter)
  */
 export class LLMApiClient {
   private errorHandler: ApiErrorHandler;
