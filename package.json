@@ -211,7 +211,7 @@
         "llt-assistant.backendUrl": {
           "type": "string",
           "default": "openai",
-          "enum": ["openai", "claude","deepseek", "openrouter"],
+          "enum": ["openai", "claude", "deepseek", "openrouter"],
           "description": "LLM API provider to use"
         },
         "llt-assistant.quality.backendUrl": {
