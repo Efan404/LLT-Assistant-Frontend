@@ -61,7 +61,7 @@ suite('Extension Integration Test Suite', () => {
 
       assert.strictEqual(
         config.get('backendUrl'),
-        'http://localhost:8000/api/v1'
+        'http://localhost:8886'
       );
       assert.strictEqual(config.get('analysisMode'), 'hybrid');
       assert.strictEqual(config.get('autoAnalyze'), false);
@@ -159,7 +159,7 @@ def test_missing_assertion():
       // Cleanup
       await config.update(
         'backendUrl',
-        'http://localhost:8000/api/v1',
+        'http://localhost:8886',
         vscode.ConfigurationTarget.Global
       );
 

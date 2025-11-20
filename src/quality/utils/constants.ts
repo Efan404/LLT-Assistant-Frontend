@@ -3,7 +3,7 @@
  */
 
 export const QUALITY_DEFAULTS = {
-	BACKEND_URL: 'http://localhost:8000/api/v1',
+	BACKEND_URL: 'http://localhost:8886',
 	ANALYSIS_MODE: 'hybrid' as const,
 	AUTO_ANALYZE: false,
 	ENABLE_INLINE_DECORATIONS: true,

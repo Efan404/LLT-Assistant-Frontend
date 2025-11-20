@@ -20,7 +20,7 @@ suite('QualityBackendClient', () => {
 
     // Mock VSCode workspace configuration
     mockWorkspace.getConfiguration.returns({
-      get: sinon.stub().returns('http://localhost:8000/api/v1'),
+      get: sinon.stub().returns('http://localhost:8886'),
     });
 
     // Stub axios methods
@@ -29,7 +29,7 @@ suite('QualityBackendClient', () => {
     axiosCreateStub = sinon.stub(axios, 'create').returns({
       post: axiosPostStub,
       get: axiosGetStub,
-      defaults: { baseURL: 'http://localhost:8000/api/v1' },
+      defaults: { baseURL: 'http://localhost:8886' },
       interceptors: {
         request: { use: sinon.stub() },
         response: { use: sinon.stub() },
@@ -47,7 +47,7 @@ suite('QualityBackendClient', () => {
     test('should create axios client with correct baseURL', () => {
       expect(axiosCreateStub.calledOnce).to.be.true;
       const createConfig = axiosCreateStub.firstCall.args[0];
-      expect(createConfig.baseURL).to.equal('http://localhost:8000/api/v1');
+      expect(createConfig.baseURL).to.equal('http://localhost:8886');
     });
 
     test('should set timeout to 30 seconds', () => {
@@ -335,7 +335,7 @@ suite('QualityBackendClient', () => {
   suite('updateBackendUrl', () => {
     test('should update backend URL when configuration changes', () => {
       mockWorkspace.getConfiguration.returns({
-        get: sinon.stub().returns('http://new-backend:8000/api/v1'),
+        get: sinon.stub().returns('http://new-backend:8000'),
       });
 
       client.updateBackendUrl();
@@ -347,7 +347,7 @@ suite('QualityBackendClient', () => {
 
     test('should not update if URL is the same', () => {
       mockWorkspace.getConfiguration.returns({
-        get: sinon.stub().returns('http://localhost:8000/api/v1'),
+        get: sinon.stub().returns('http://localhost:8886'),
       });
 
       client.updateBackendUrl();

@@ -92,7 +92,7 @@ Click the "Clear" button ($(clear-all)) at the top of Activity Bar to remove all
 ```json
 {
   // Backend API URL
-  "llt-assistant.quality.backendUrl": "http://localhost:8000/api/v1",
+  "llt-assistant.quality.backendUrl": "http://localhost:8886",
 
   // Analysis mode
   "llt-assistant.quality.analysisMode": "hybrid",
@@ -180,7 +180,7 @@ If you see "Cannot connect to LLT backend" error:
 
 1. Verify backend service is running:
    ```bash
-   curl http://localhost:8000/api/v1/health
+   curl http://localhost:8886/health
    ```
 
 2. Check that `backendUrl` in settings is correct

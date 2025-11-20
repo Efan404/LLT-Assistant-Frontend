@@ -71,7 +71,7 @@ Build a quality analysis feature that integrates with a backend API to analyze p
 ### Backend API
 
 **Base URL**:
-- Development: `http://localhost:8000/api/v1`
+- Development: `http://localhost:8886`
 - Production: `https://llt-assistant.fly.dev/api/v1`
 
 **Endpoint**: `POST /workflows/analyze-quality`
@@ -307,7 +307,7 @@ The extension will support the following configuration:
 
 ```json
 {
-  "llt.backendUrl": "http://localhost:8000",
+  "llt.backendUrl": "http://localhost:8886",
   "llt.analysisMode": "hybrid",
   "llt.autoAnalyze": false,
   "llt.enableInlineDecorations": true,

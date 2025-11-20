@@ -87,7 +87,7 @@ LLT Assistant is a comprehensive testing toolkit that helps developers:
 - Backend service: `https://llt-assistant.fly.dev`
 
 ### For Quality Analysis
-- Backend service running at `http://localhost:8000` (for local development)
+- Backend service running at `http://localhost:8886` (for local development)
 - Or use production backend: `https://llt-assistant.fly.dev`
 
 ### For Development
@@ -143,14 +143,14 @@ Open VSCode Settings (`Ctrl+,` / `Cmd+,`) and search for "LLT Assistant":
 #### Test Generation Settings
 
 1. **Backend URL** (`llt-assistant.backendUrl`)
-   - Default: `https://llt-assistant.fly.dev/api/v1`
+   - Default: `https://llt-assistant.fly.dev`
    - Change only if using a custom backend
 
 #### Quality Analysis Settings
 
 1. **Backend URL** (`llt-assistant.quality.backendUrl`)
-   - Default: `http://localhost:8000/api/v1` (for local development)
-   - Production: `https://llt-assistant.fly.dev/api/v1`
+   - Default: `http://localhost:8886` (for local development)
+   - Production: `https://llt-assistant.fly.dev`
 
 2. **Analysis Mode** (`llt-assistant.quality.analysisMode`)
    - `hybrid` (default): Rule engine + AI for uncertain cases - **Best results**

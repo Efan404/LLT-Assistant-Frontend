@@ -215,7 +215,7 @@
         },
         "llt-assistant.quality.backendUrl": {
           "type": "string",
-          "default": "http://localhost:8000/api/v1",
+          "default": "http://localhost:8886",
           "description": "Backend API URL for test quality analysis (separate from test generation backend)"
         },
         "llt-assistant.quality.analysisMode": {

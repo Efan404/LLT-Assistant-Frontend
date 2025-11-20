@@ -209,11 +209,11 @@ suite('My Extension', () => {
 
   test('should read configuration', () => {
     mockWorkspace.getConfiguration.returns({
-      get: sinon.stub().withArgs('backendUrl').returns('http://localhost:8000'),
+      get: sinon.stub().withArgs('backendUrl').returns('http://localhost:8886'),
     });
 
     const config = loadConfig();
-    expect(config.backendUrl).to.equal('http://localhost:8000');
+    expect(config.backendUrl).to.equal('http://localhost:8886');
   });
 });
 ```
