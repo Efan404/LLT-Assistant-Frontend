@@ -10,4 +10,4 @@ export * from './parser';
 export * from './preview';
 export * from './report';
 export * from './utils';
-export * from './codelens/coverageCodeLensProvider';
+export * from './codelens';

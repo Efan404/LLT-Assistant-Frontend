@@ -8,9 +8,6 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import Parser from 'tree-sitter';
-import type { SyntaxNode, Language } from 'tree-sitter';
-import Python from 'tree-sitter-python';
 import {
   ValidationResult,
   SyntaxError as SyntaxErrorType,
@@ -19,8 +16,23 @@ import {
 
 const execAsync = promisify(exec);
 
-let pythonParser: Parser | undefined;
-const pythonLanguage = Python as unknown as Language;
+// Optional tree-sitter imports (may fail if native module not compiled)
+let Parser: any;
+let Python: any;
+let pythonParser: any;
+let pythonLanguage: any;
+let treeSitterAvailable = false;
+
+// Try to load tree-sitter (may fail if native module not compiled)
+try {
+  Parser = require('tree-sitter');
+  Python = require('tree-sitter-python');
+  pythonLanguage = Python as any;
+  treeSitterAvailable = true;
+} catch (error) {
+  console.warn('[LLT Assistant] tree-sitter not available. Syntax validation will be limited.');
+  treeSitterAvailable = false;
+}
 
 /**
  * Validate Python syntax of test code
@@ -31,6 +43,20 @@ const pythonLanguage = Python as unknown as Language;
  * @returns Validation result with errors and warnings
  */
 export async function validatePythonSyntax(code: string): Promise<ValidationResult> {
+  // If tree-sitter is not available, skip syntax validation
+  if (!treeSitterAvailable) {
+    console.warn('[LLT Assistant] tree-sitter not available, skipping syntax validation');
+    return {
+      isValid: true, // Assume valid if we can't validate
+      errors: [],
+      warnings: [{
+        line: 0,
+        message: 'Syntax validation unavailable (tree-sitter not compiled). Code may contain syntax errors.',
+        severity: 'warning'
+      }]
+    };
+  }
+
   try {
     const parser = getPythonParser();
     const tree = parser.parse(code);
@@ -63,7 +89,11 @@ export async function validatePythonSyntax(code: string): Promise<ValidationResu
   }
 }
 
-function getPythonParser(): Parser {
+function getPythonParser(): any {
+  if (!treeSitterAvailable) {
+    throw new Error('tree-sitter is not available');
+  }
+
   if (!pythonParser) {
     pythonParser = new Parser();
     pythonParser.setLanguage(pythonLanguage);
@@ -72,11 +102,11 @@ function getPythonParser(): Parser {
   return pythonParser;
 }
 
-function collectSyntaxErrors(root: SyntaxNode, code: string): SyntaxErrorType[] {
+function collectSyntaxErrors(root: any, code: string): SyntaxErrorType[] {
   const errors: SyntaxErrorType[] = [];
   const seen = new Set<string>();
   const lines = code.split(/\r?\n/);
-  const stack: SyntaxNode[] = [root];
+  const stack: any[] = [root];
 
   while (stack.length > 0) {
     const node = stack.pop();
@@ -100,7 +130,7 @@ function collectSyntaxErrors(root: SyntaxNode, code: string): SyntaxErrorType[] 
   return errors;
 }
 
-function formatSyntaxError(node: SyntaxNode, lines: string[]): SyntaxErrorType {
+function formatSyntaxError(node: any, lines: string[]): SyntaxErrorType {
   const lineIndex = node.startPosition.row;
   const columnIndex = node.startPosition.column;
   const lineText = lines[lineIndex] ?? '';

@@ -12,7 +12,7 @@ import { CoverageTreeDataProvider } from '../activityBar';
 import { CoverageBackendClient } from '../api';
 import { UncoveredFunction, PartiallyCoveredFunction, UncoveredRange, RecommendedTest, CoverageReport } from '../api/types';
 import { CoverageConfig } from '../utils/config';
-import { CoverageCodeLensProvider } from '../codelens/coverageCodeLensProvider';
+import { CoverageCodeLensProvider } from '../codelens';
 import { InlinePreviewManager } from '../preview';
 
 

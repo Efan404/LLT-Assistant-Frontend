@@ -117,7 +117,7 @@ export class InlinePreviewManager {
 				return;
 			}
 
-			if (!this.currentEdit) {
+			if (!this.currentEdit || !this.currentEdit.range) {
 				return;
 			}
 
@@ -125,8 +125,8 @@ export class InlinePreviewManager {
 			for (const change of e.contentChanges) {
 				const changeRange = change.range;
 				if (
-					changeRange.start.line <= this.currentEdit.range.end.line &&
-					changeRange.end.line >= this.currentEdit.range.start.line
+					changeRange.start.line <= this.currentEdit.range!.end.line &&
+					changeRange.end.line >= this.currentEdit.range!.start.line
 				) {
 					// User is editing the green area - auto-accept
 					this.acceptPreview();
@@ -153,12 +153,12 @@ export class InlinePreviewManager {
 	 * Accept the preview - remove decoration and CodeLens, keep code
 	 */
 	async acceptPreview(): Promise<void> {
-		if (!this.currentEdit) {
+		if (!this.currentEdit || !this.currentEdit.uri) {
 			return;
 		}
 
 		const editor = vscode.window.visibleTextEditors.find(
-			e => e.document.uri.toString() === this.currentEdit!.uri.toString()
+			e => e.document.uri.toString() === this.currentEdit!.uri!.toString()
 		);
 
 		if (editor) {
@@ -183,18 +183,18 @@ export class InlinePreviewManager {
 	 * Reject the preview - delete the inserted code
 	 */
 	async rejectPreview(): Promise<void> {
-		if (!this.currentEdit) {
+		if (!this.currentEdit || !this.currentEdit.uri || !this.currentEdit.range) {
 			return;
 		}
 
 		const editor = vscode.window.visibleTextEditors.find(
-			e => e.document.uri.toString() === this.currentEdit!.uri.toString()
+			e => e.document.uri.toString() === this.currentEdit!.uri!.toString()
 		);
 
 		if (editor) {
 			// Delete the inserted code
 			const success = await editor.edit(editBuilder => {
-				editBuilder.delete(this.currentEdit!.range);
+				editBuilder.delete(this.currentEdit!.range!);
 			});
 
 			if (success) {
@@ -220,9 +220,9 @@ export class InlinePreviewManager {
 	 * Clear the preview
 	 */
 	clearPreview(): void {
-		if (this.currentEdit) {
+		if (this.currentEdit && this.currentEdit.uri) {
 			const editor = vscode.window.visibleTextEditors.find(
-				e => e.document.uri.toString() === this.currentEdit!.uri.toString()
+				e => e.document.uri.toString() === this.currentEdit!.uri!.toString()
 			);
 
 			if (editor) {
