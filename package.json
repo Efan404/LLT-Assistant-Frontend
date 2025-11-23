@@ -206,20 +206,20 @@
         },
         "llt-assistant.quality.backendUrl": {
           "type": "string",
-          "default": "http://localhost:8886",
-          "description": "Backend API URL for test quality analysis (separate from test generation backend)"
+          "default": "http://localhost:8000",
+          "description": "Backend API URL for test quality analysis"
         },
         "llt-assistant.quality.analysisMode": {
           "type": "string",
           "enum": [
-            "rules-only",
-            "llm-only",
+            "fast",
+            "deep",
             "hybrid"
           ],
           "enumDescriptions": [
-            "Fast analysis using only rule engine",
-            "AI-powered analysis using only LLM",
-            "Balanced: rule engine + LLM for uncertain cases"
+            "Fast analysis using only rule engine (recommended for auto-save)",
+            "AI-powered analysis using only LLM (slower, more thorough)",
+            "Balanced: rule engine + LLM for uncertain cases (recommended default)"
           ],
           "default": "hybrid",
           "description": "Test quality analysis mode"
@@ -227,7 +227,7 @@
         "llt-assistant.quality.autoAnalyze": {
           "type": "boolean",
           "default": false,
-          "description": "Automatically analyze tests when opening test files"
+          "description": "Automatically analyze tests when opening or saving test files"
         },
         "llt-assistant.quality.enableInlineDecorations": {
           "type": "boolean",
@@ -255,21 +255,6 @@
             "info"
           ],
           "description": "Which severity levels to display"
-        },
-        "llt-assistant.quality.disabledRules": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [],
-          "description": "List of quality rule IDs to disable"
-        },
-        "llt-assistant.quality.llmTemperature": {
-          "type": "number",
-          "default": 0.3,
-          "minimum": 0,
-          "maximum": 1,
-          "description": "Temperature for LLM quality analysis (0-1)"
         },
         "llt-assistant.coverage.coverageFilePath": {
           "type": "string",
