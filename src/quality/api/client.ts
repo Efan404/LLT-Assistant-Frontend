@@ -18,6 +18,7 @@ import {
 	BackendError,
 	HealthCheckResponse
 } from './types';
+import { BackendUrlConfig } from '../../utils/config';
 import { QUALITY_DEFAULTS } from '../utils/constants';
 
 /** Maximum files per request to avoid timeout */
@@ -41,11 +42,10 @@ export class QualityBackendClient {
 	}
 
 	/**
-	 * Get backend URL from VSCode configuration.
+	 * Get backend URL from unified configuration.
 	 */
 	private getBackendUrl(): string {
-		const config = vscode.workspace.getConfiguration('llt-assistant.quality');
-		return config.get('backendUrl', QUALITY_DEFAULTS.BACKEND_URL);
+		return BackendUrlConfig.getBackendUrl();
 	}
 
 	/**

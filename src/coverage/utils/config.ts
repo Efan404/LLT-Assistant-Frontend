@@ -3,6 +3,7 @@
  */
 
 import * as vscode from 'vscode';
+import { BackendUrlConfig } from '../../utils/config';
 
 export class CoverageConfig {
 	private static readonly CONFIG_SECTION = 'llt-assistant.coverage';
@@ -48,10 +49,9 @@ export class CoverageConfig {
 	}
 
 	/**
-	 * Get backend URL
+	 * Get backend URL from unified configuration
 	 */
 	static getBackendUrl(): string {
-		const config = vscode.workspace.getConfiguration('llt-assistant');
-		return config.get('backendUrl', 'https://cs5351.efan.dev');
+		return BackendUrlConfig.getBackendUrl();
 	}
 }

@@ -12,6 +12,7 @@ import {
 	BackendErrorType,
 	HealthCheckResponse
 } from './types';
+import { BackendUrlConfig } from '../../utils/config';
 
 /**
  * Impact Analysis Backend Client
@@ -32,12 +33,10 @@ export class ImpactAnalysisClient {
 	}
 
 	/**
-	 * Get backend URL from configuration
+	 * Get backend URL from unified configuration
 	 */
 	private getBackendUrl(): string {
-		const config = vscode.workspace.getConfiguration('llt-assistant');
-		// Use the same backend URL as test generation
-		return config.get('backendUrl', 'https://cs5351.efan.dev');
+		return BackendUrlConfig.getBackendUrl();
 	}
 
 	/**

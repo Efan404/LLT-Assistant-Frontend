@@ -3,9 +3,6 @@
  */
 
 export const QUALITY_DEFAULTS = {
-	/** Backend API URL */
-	BACKEND_URL: 'http://localhost:8000',
-
 	/** Default analysis mode: fast | deep | hybrid */
 	ANALYSIS_MODE: 'hybrid' as const,
 

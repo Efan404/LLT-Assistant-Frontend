@@ -11,6 +11,7 @@ import {
   AsyncJobResponse,
   TaskStatusResponse
 } from '../generation/types';
+import { BackendUrlConfig } from '../utils/config';
 
 /**
  * Backend API Client for Test Generation
@@ -19,8 +20,8 @@ export class BackendApiClient {
   private baseUrl: string;
 
   constructor(baseUrl?: string) {
-    // Default to production server, can be overridden with config
-    this.baseUrl = baseUrl || 'http://localhost:8886/api/v1';
+    // Default to production server from unified config, can be overridden with config
+    this.baseUrl = baseUrl || BackendUrlConfig.getFullApiUrl();
   }
 
   /**

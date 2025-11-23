@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { BackendUrlConfig } from '../utils/config';
 
 /**
  * Manages plugin configuration for backend API
@@ -7,12 +8,11 @@ export class ConfigurationManager {
   private readonly configSection = 'llt-assistant';
 
   /**
-   * Get the configured backend URL
+   * Get the configured backend URL from unified configuration
    * @returns Backend API URL
    */
   public getBackendUrl(): string {
-    const config = vscode.workspace.getConfiguration(this.configSection);
-    return config.get<string>('backendUrl', 'https://cs5351.efan.dev');
+    return BackendUrlConfig.getBackendUrl();
   }
 
   /**

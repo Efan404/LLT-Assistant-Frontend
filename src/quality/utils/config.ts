@@ -5,15 +5,16 @@
 import * as vscode from 'vscode';
 import { AnalysisMode, IssueSeverity } from '../api/types';
 import { QUALITY_DEFAULTS } from './constants';
+import { BackendUrlConfig } from '../../utils/config';
 
 export class QualityConfigManager {
 	private static readonly SECTION = 'llt-assistant.quality';
 
 	/**
-	 * Get backend URL.
+	 * Get backend URL from unified configuration.
 	 */
 	static getBackendUrl(): string {
-		return this.get<string>('backendUrl', QUALITY_DEFAULTS.BACKEND_URL);
+		return BackendUrlConfig.getBackendUrl();
 	}
 
 	/**

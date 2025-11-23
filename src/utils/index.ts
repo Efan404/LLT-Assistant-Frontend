@@ -1,5 +1,6 @@
 /**
- * Utilities module exports
+ * Utility module exports
  */
 
-export { CodeAnalyzer } from './codeAnalysis';
+export * from './config';
+export * from './codeAnalysis';

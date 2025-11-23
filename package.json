@@ -204,11 +204,6 @@
           "default": "https://cs5351.efan.dev",
           "description": "Backend API URL for test generation"
         },
-        "llt-assistant.quality.backendUrl": {
-          "type": "string",
-          "default": "http://localhost:8000",
-          "description": "Backend API URL for test quality analysis"
-        },
         "llt-assistant.quality.analysisMode": {
           "type": "string",
           "enum": [
