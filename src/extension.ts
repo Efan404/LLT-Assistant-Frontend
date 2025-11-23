@@ -22,7 +22,8 @@ import {
 	QualityStatusBarManager,
 	QualityConfigManager,
 	IssueDecorator,
-	QualitySuggestionProvider
+	QualitySuggestionProvider,
+	DiagnosticManager
 } from './quality';
 import {
 	CoverageBackendClient,
@@ -70,7 +71,11 @@ export function activate(context: vscode.ExtensionContext) {
 	const qualityStatusBar = new QualityStatusBarManager();
 	const issueDecorator = new IssueDecorator();
 	const suggestionProvider = new QualitySuggestionProvider();
+	const diagnosticManager = new DiagnosticManager();
 	const analyzeCommand = new AnalyzeQualityCommand(qualityBackendClient, qualityTreeProvider);
+
+	// Register diagnostic manager for disposal
+	context.subscriptions.push({ dispose: () => diagnosticManager.dispose() });
 
 	// Register tree view for quality analysis
 	const treeView = vscode.window.createTreeView('lltQualityExplorer', {
@@ -116,6 +121,9 @@ export function activate(context: vscode.ExtensionContext) {
 			const criticalCount = result.summary.critical_issues;
 			qualityStatusBar.showResults(result.issues.length, criticalCount);
 
+			// Update diagnostics (Problems panel)
+			diagnosticManager.updateDiagnostics(result.issues);
+
 			// Update decorations and suggestions
 			if (QualityConfigManager.getEnableInlineDecorations()) {
 				issueDecorator.updateIssues(result.issues);
@@ -145,6 +153,7 @@ export function activate(context: vscode.ExtensionContext) {
 			qualityTreeProvider.clear();
 			issueDecorator.clear();
 			suggestionProvider.clear();
+			diagnosticManager.clear();
 			qualityStatusBar.showIdle();
 			vscode.window.showInformationMessage('Quality issues cleared');
 		}
