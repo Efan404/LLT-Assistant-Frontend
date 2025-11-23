@@ -12,9 +12,6 @@ export const GLOBAL_CONFIG = {
   BACKEND: {
     // Main backend URL (used for test generation, impact analysis, coverage, etc.)
     URL: 'https://cs5351.efan.dev',
-
-    // API paths
-    BASE_PATH: '/api/v1',
   },
 
   // Configuration section names
@@ -45,21 +42,10 @@ export class BackendUrlConfig {
   }
 
   /**
-   * Get the full backend API base URL (including /api/v1 path)
+   * Get the full backend API base URL
+   * Note: /api/v1 path has been removed from backend, so this now returns the base URL directly
    */
   static getFullApiUrl(): string {
-    const baseUrl = this.getBackendUrl();
-    const basePath = GLOBAL_CONFIG.BACKEND.BASE_PATH;
-
-    // If baseUrl already ends with basePath, don't add it again
-    if (baseUrl.endsWith(basePath)) {
-      return baseUrl;
-    }
-
-    // Ensure no double slashes
-    const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-    const normalizedBasePath = basePath.startsWith('/') ? basePath : `/${basePath}`;
-
-    return `${normalizedBaseUrl}${normalizedBasePath}`;
+    return this.getBackendUrl();
   }
 }
