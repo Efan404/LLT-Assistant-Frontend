@@ -1,21 +1,24 @@
 /**
- * Inline Issue Decorations
- * Highlights quality issues directly in the code editor
+ * Inline Issue Decorations (Feature 4)
+ *
+ * Highlights quality issues directly in the code editor with squiggly lines:
+ * - Error: Red wavy underline
+ * - Warning: Yellow underline
+ * - Info: Blue dotted underline
  */
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { QualityIssue, IssueSeverity } from '../api/types';
+import { QualityIssue } from '../api/types';
 
 export class IssueDecorator {
 	private errorDecorationType: vscode.TextEditorDecorationType;
 	private warningDecorationType: vscode.TextEditorDecorationType;
 	private infoDecorationType: vscode.TextEditorDecorationType;
 
-	private issuesByFile: Map<string, QualityIssue[]> = new Map();
+	private issuesByFile = new Map<string, QualityIssue[]>();
 
 	constructor() {
-		// Create decoration types for each severity
 		this.errorDecorationType = vscode.window.createTextEditorDecorationType({
 			textDecoration: 'underline wavy',
 			borderWidth: '0 0 2px 0',
@@ -45,55 +48,52 @@ export class IssueDecorator {
 	}
 
 	/**
-	 * Update decorations with new analysis results
+	 * Update decorations with new analysis results.
 	 */
 	public updateIssues(issues: QualityIssue[]): void {
-		// Group issues by file
 		this.issuesByFile.clear();
+
 		for (const issue of issues) {
-			const fileIssues = this.issuesByFile.get(issue.file);
-			if (fileIssues) {
-				fileIssues.push(issue);
+			const existing = this.issuesByFile.get(issue.file_path);
+			if (existing) {
+				existing.push(issue);
 			} else {
-				this.issuesByFile.set(issue.file, [issue]);
+				this.issuesByFile.set(issue.file_path, [issue]);
 			}
 		}
 
 		// Update all visible editors
-		vscode.window.visibleTextEditors.forEach(editor => {
+		for (const editor of vscode.window.visibleTextEditors) {
 			this.updateEditorDecorations(editor);
-		});
+		}
 	}
 
 	/**
-	 * Clear all decorations
+	 * Clear all decorations.
 	 */
 	public clear(): void {
 		this.issuesByFile.clear();
-		vscode.window.visibleTextEditors.forEach(editor => {
+		for (const editor of vscode.window.visibleTextEditors) {
 			editor.setDecorations(this.errorDecorationType, []);
 			editor.setDecorations(this.warningDecorationType, []);
 			editor.setDecorations(this.infoDecorationType, []);
-		});
+		}
 	}
 
 	/**
-	 * Update decorations for a specific editor
+	 * Update decorations for a specific editor.
 	 */
 	public updateEditorDecorations(editor: vscode.TextEditor): void {
 		const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
 		if (!workspaceRoot) {
-			console.warn('[LLT Quality] No workspace folder found, cannot update decorations');
 			return;
 		}
 
-		// Use path.relative for cross-platform compatibility
 		const relativePath = path.relative(workspaceRoot, editor.document.uri.fsPath)
-			.replace(/\\/g, '/'); // Normalize to forward slashes
+			.replace(/\\/g, '/');
 
 		const issues = this.issuesByFile.get(relativePath) || [];
 
-		// Group decorations by severity
 		const errorDecorations: vscode.DecorationOptions[] = [];
 		const warningDecorations: vscode.DecorationOptions[] = [];
 		const infoDecorations: vscode.DecorationOptions[] = [];
@@ -114,32 +114,26 @@ export class IssueDecorator {
 			}
 		}
 
-		// Apply decorations
 		editor.setDecorations(this.errorDecorationType, errorDecorations);
 		editor.setDecorations(this.warningDecorationType, warningDecorations);
 		editor.setDecorations(this.infoDecorationType, infoDecorations);
 	}
 
 	/**
-	 * Create a decoration for a single issue
+	 * Create a decoration for a single issue.
 	 */
 	private createDecoration(
 		document: vscode.TextDocument,
 		issue: QualityIssue
 	): vscode.DecorationOptions {
-		// Line numbers in API are 1-indexed, VSCode uses 0-indexed
+		// Convert 1-based line to 0-based
 		const line = Math.max(0, issue.line - 1);
 
-		// Ensure the line exists
 		if (line >= document.lineCount) {
-			console.warn(`Issue line ${issue.line} exceeds document line count ${document.lineCount}`);
-			return this.createEmptyDecoration();
+			return { range: new vscode.Range(0, 0, 0, 0), hoverMessage: '' };
 		}
 
 		const lineText = document.lineAt(line).text;
-
-		// Find the range to underline
-		// If we have column info, use it; otherwise underline the whole line
 		const startChar = Math.max(0, issue.column > 0 ? issue.column : lineText.search(/\S/));
 		const endChar = lineText.length;
 
@@ -150,47 +144,32 @@ export class IssueDecorator {
 
 		// Create hover message
 		const hoverMessage = new vscode.MarkdownString();
-		hoverMessage.appendMarkdown(`**${this.formatIssueType(issue.type)}**\n\n`);
+		hoverMessage.appendMarkdown(`**${this.formatCode(issue.code)}**\n\n`);
 		hoverMessage.appendMarkdown(`${issue.message}\n\n`);
-		hoverMessage.appendMarkdown(`*Detected by: ${issue.detected_by === 'llm' ? '🤖 AI' : '⚡ Rule Engine'}*\n\n`);
+		hoverMessage.appendMarkdown(`*Detected by: ${issue.detected_by === 'llm' ? 'AI' : 'Rule'}*\n\n`);
 
-		if (issue.suggestion.explanation) {
-			hoverMessage.appendMarkdown(`**Suggestion:** ${issue.suggestion.explanation}\n\n`);
+		if (issue.suggestion) {
+			hoverMessage.appendMarkdown(`**Suggestion:** ${issue.suggestion.description}\n\n`);
+			if (issue.suggestion.new_text && issue.suggestion.type !== 'delete') {
+				hoverMessage.appendCodeblock(issue.suggestion.new_text, 'python');
+			}
 		}
 
-		if (issue.suggestion.new_code) {
-			hoverMessage.appendCodeblock(issue.suggestion.new_code, 'python');
-		}
-
-		return {
-			range,
-			hoverMessage
-		};
+		return { range, hoverMessage };
 	}
 
 	/**
-	 * Create an empty decoration (for error cases)
+	 * Format issue code for display.
 	 */
-	private createEmptyDecoration(): vscode.DecorationOptions {
-		return {
-			range: new vscode.Range(0, 0, 0, 0),
-			hoverMessage: ''
-		};
-	}
-
-	/**
-	 * Format issue type for display
-	 */
-	private formatIssueType(type: string): string {
-		// Convert "duplicate-assertion" to "Duplicate Assertion"
-		return type
+	private formatCode(code: string): string {
+		return code
 			.split('-')
 			.map(word => word.charAt(0).toUpperCase() + word.slice(1))
 			.join(' ');
 	}
 
 	/**
-	 * Dispose all decoration types
+	 * Dispose all decoration types.
 	 */
 	public dispose(): void {
 		this.errorDecorationType.dispose();

@@ -1,72 +1,65 @@
 /**
- * Configuration Manager for Quality Analysis
+ * Configuration Manager for Quality Analysis (Feature 4)
  */
 
 import * as vscode from 'vscode';
-import { AnalysisMode } from '../api/types';
+import { AnalysisMode, IssueSeverity } from '../api/types';
 import { QUALITY_DEFAULTS } from './constants';
 
 export class QualityConfigManager {
 	private static readonly SECTION = 'llt-assistant.quality';
 
 	/**
-	 * Get backend URL
+	 * Get backend URL.
 	 */
 	static getBackendUrl(): string {
 		return this.get<string>('backendUrl', QUALITY_DEFAULTS.BACKEND_URL);
 	}
 
 	/**
-	 * Get analysis mode
+	 * Get analysis mode.
 	 */
 	static getAnalysisMode(): AnalysisMode {
 		return this.get<AnalysisMode>('analysisMode', QUALITY_DEFAULTS.ANALYSIS_MODE);
 	}
 
 	/**
-	 * Get auto-analyze setting
+	 * Get auto-analyze on save setting.
 	 */
 	static getAutoAnalyze(): boolean {
 		return this.get<boolean>('autoAnalyze', QUALITY_DEFAULTS.AUTO_ANALYZE);
 	}
 
 	/**
-	 * Get inline decorations setting
+	 * Get inline decorations setting.
 	 */
 	static getEnableInlineDecorations(): boolean {
 		return this.get<boolean>('enableInlineDecorations', QUALITY_DEFAULTS.ENABLE_INLINE_DECORATIONS);
 	}
 
 	/**
-	 * Get code actions setting
+	 * Get code actions setting.
 	 */
 	static getEnableCodeActions(): boolean {
 		return this.get<boolean>('enableCodeActions', QUALITY_DEFAULTS.ENABLE_CODE_ACTIONS);
 	}
 
 	/**
-	 * Get severity filter
+	 * Get severity filter.
 	 */
-	static getSeverityFilter(): string[] {
-		return this.get<string[]>('severityFilter', QUALITY_DEFAULTS.SEVERITY_FILTER);
+	static getSeverityFilter(): IssueSeverity[] {
+		return this.get<IssueSeverity[]>('severityFilter', [...QUALITY_DEFAULTS.SEVERITY_FILTER]);
 	}
 
 	/**
-	 * Get disabled rules
+	 * Get auto-analyze debounce delay in milliseconds.
 	 */
-	static getDisabledRules(): string[] {
-		return this.get<string[]>('disabledRules', QUALITY_DEFAULTS.DISABLED_RULES);
+	static getAutoAnalyzeDebounceMs(): number {
+		return QUALITY_DEFAULTS.AUTO_ANALYZE_DEBOUNCE_MS;
 	}
 
 	/**
-	 * Get LLM temperature
-	 */
-	static getLLMTemperature(): number {
-		return this.get<number>('llmTemperature', QUALITY_DEFAULTS.LLM_TEMPERATURE);
-	}
-
-	/**
-	 * Generic get method
+	 * Generic get method.
 	 */
 	private static get<T>(key: string, defaultValue: T): T {
 		const config = vscode.workspace.getConfiguration(this.SECTION);
@@ -74,7 +67,7 @@ export class QualityConfigManager {
 	}
 
 	/**
-	 * Watch for configuration changes
+	 * Watch for configuration changes.
 	 */
 	static onDidChange(
 		callback: (e: vscode.ConfigurationChangeEvent) => void

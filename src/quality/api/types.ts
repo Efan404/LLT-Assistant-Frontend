@@ -1,10 +1,18 @@
 /**
- * API Types for LLT Backend Quality Analysis
- * Based on OpenAPI spec: https://github.com/Efan404/LLT-Assistant-Backend
+ * API Types for Quality Analysis (Feature 4)
+ *
+ * Based on OpenAPI spec for POST /quality/analyze endpoint.
+ * These types are designed to work with VSCode's DiagnosticCollection
+ * and CodeActionProvider APIs.
  */
 
+// ============================================================================
+// Request Types
+// ============================================================================
+
 /**
- * File input for analysis
+ * File input for quality analysis.
+ * Content should be the editor's dirty content, not the saved file.
  */
 export interface FileInput {
 	path: string;
@@ -12,125 +20,98 @@ export interface FileInput {
 }
 
 /**
- * Analysis mode
+ * Analysis mode selection.
+ * - fast: Rules only (recommended for on-save triggers)
+ * - deep: LLM only
+ * - hybrid: Rules + LLM (recommended default for button triggers)
  */
-export type AnalysisMode = 'rules-only' | 'llm-only' | 'hybrid';
+export type AnalysisMode = 'fast' | 'deep' | 'hybrid';
 
 /**
- * Issue severity level
+ * Quality analysis request payload.
+ */
+export interface QualityAnalysisRequest {
+	files: FileInput[];
+	mode?: AnalysisMode;
+}
+
+// ============================================================================
+// Response Types
+// ============================================================================
+
+/**
+ * Issue severity level.
+ * Maps to VSCode DiagnosticSeverity:
+ * - error -> DiagnosticSeverity.Error (red squiggly)
+ * - warning -> DiagnosticSeverity.Warning (yellow squiggly)
+ * - info -> DiagnosticSeverity.Information (blue dotted)
  */
 export type IssueSeverity = 'error' | 'warning' | 'info';
 
 /**
- * Issue type
+ * Detection source for the issue.
  */
-export type IssueType =
-	| 'duplicate-assertion'
-	| 'missing-assertion'
-	| 'trivial-assertion'
-	| 'vague-assertion'
-	| 'unused-fixture'
-	| 'unused-variable'
-	| 'test-mergeability'
-	| 'assertion-inadequate'
-	| 'naming-unclear'
-	| 'code-smell';
+export type DetectedBy = 'rule' | 'llm';
 
 /**
- * Detection source
+ * Fix suggestion type.
+ * - delete: Remove the problematic code
+ * - replace: Replace with new_text
+ * - insert: Insert new_text at the location
  */
-export type DetectedBy = 'rule_engine' | 'llm';
+export type FixSuggestionType = 'delete' | 'replace' | 'insert';
 
 /**
- * Suggestion action
+ * Embedded fix suggestion.
+ * Pre-loaded in response to enable zero-latency quick fixes.
  */
-export type SuggestionAction = 'remove' | 'replace' | 'add';
-
-/**
- * Issue suggestion
- */
-export interface IssueSuggestion {
-	action: SuggestionAction;
-	explanation: string;
-	old_code: string | null;
-	new_code: string | null;
+export interface FixSuggestion {
+	type: FixSuggestionType;
+	new_text: string;
+	description: string;
 }
 
 /**
- * Quality issue
+ * Quality issue detected in analysis.
+ *
+ * Note: Backend returns 1-based line numbers.
+ * Frontend must convert to 0-based for VSCode APIs.
  */
 export interface QualityIssue {
-	file: string;
-	line: number;
-	column: number;
+	file_path: string;
+	line: number;        // 1-based from backend
+	column: number;      // 0-based
 	severity: IssueSeverity;
-	type: IssueType;
+	code: string;        // Issue code (e.g., "redundant-assertion")
 	message: string;
 	detected_by: DetectedBy;
-	suggestion: IssueSuggestion;
+	suggestion: FixSuggestion | null;
 }
 
 /**
- * Analysis configuration
+ * Analysis summary statistics.
  */
-export interface AnalysisConfig {
-	disabled_rules?: string[];
-	focus_on_changed_lines?: boolean;
-	llm_temperature?: number;
+export interface AnalysisSummary {
+	total_files?: number;
+	total_issues: number;
+	critical_issues: number;
 }
 
 /**
- * Client metadata
+ * Quality analysis response payload.
  */
-export interface ClientMetadata {
-	extension_version?: string;
-	vscode_version?: string;
-	platform?: string;
-	workspace_hash?: string;
-}
-
-/**
- * Severity breakdown
- */
-export interface SeverityBreakdown {
-	error: number;
-	warning: number;
-	info: number;
-}
-
-/**
- * Analysis metrics
- */
-export interface AnalysisMetrics {
-	total_tests: number;
-	issues_count: number;
-	analysis_time_ms: number;
-	rules_applied: string[];
-	severity_breakdown?: SeverityBreakdown;
-}
-
-/**
- * Analyze quality request
- */
-export interface AnalyzeQualityRequest {
-	files: FileInput[];
-	mode?: AnalysisMode;
-	config?: AnalysisConfig;
-	client_metadata?: ClientMetadata;
-}
-
-/**
- * Analyze quality response
- */
-export interface AnalyzeQualityResponse {
+export interface QualityAnalysisResponse {
 	analysis_id: string;
+	summary: AnalysisSummary;
 	issues: QualityIssue[];
-	metrics: AnalysisMetrics;
-	version_id?: string;
 }
 
+// ============================================================================
+// Error Types
+// ============================================================================
+
 /**
- * Backend error types
+ * Backend error classification.
  */
 export type BackendErrorType =
 	| 'network'
@@ -141,7 +122,7 @@ export type BackendErrorType =
 	| 'unknown';
 
 /**
- * Backend error
+ * Structured backend error for user-friendly messaging.
  */
 export interface BackendError {
 	type: BackendErrorType;
@@ -150,10 +131,14 @@ export interface BackendError {
 	statusCode: number;
 }
 
+// ============================================================================
+// Health Check
+// ============================================================================
+
 /**
- * Health check response
+ * Health check response.
  */
 export interface HealthCheckResponse {
-	status: string;
+	status: 'healthy' | 'degraded';
 	version?: string;
 }

@@ -1,5 +1,5 @@
 /**
- * API module exports
+ * Quality Analysis API exports
  */
 
 export * from './types';

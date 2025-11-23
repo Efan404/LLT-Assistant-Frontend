@@ -1,16 +1,27 @@
 /**
- * Backend API Client for LLT Quality Analysis
+ * Backend API Client for Quality Analysis (Feature 4)
+ *
+ * Handles communication with POST /quality/analyze endpoint.
+ * Features:
+ * - File chunking for large batch requests
+ * - Exponential backoff retry logic
+ * - Error classification and handling
  */
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import * as vscode from 'vscode';
 import {
-	AnalyzeQualityRequest,
-	AnalyzeQualityResponse,
+	QualityAnalysisRequest,
+	QualityAnalysisResponse,
+	QualityIssue,
+	AnalysisMode,
 	BackendError,
 	HealthCheckResponse
 } from './types';
 import { QUALITY_DEFAULTS } from '../utils/constants';
+
+/** Maximum files per request to avoid timeout */
+const MAX_FILES_PER_CHUNK = 10;
 
 export class QualityBackendClient {
 	private client: AxiosInstance;
@@ -20,7 +31,7 @@ export class QualityBackendClient {
 		this.baseUrl = this.getBackendUrl();
 		this.client = axios.create({
 			baseURL: this.baseUrl,
-			timeout: 30000, // 30 seconds
+			timeout: 30000,
 			headers: {
 				'Content-Type': 'application/json'
 			}
@@ -30,7 +41,7 @@ export class QualityBackendClient {
 	}
 
 	/**
-	 * Get backend URL from VSCode configuration
+	 * Get backend URL from VSCode configuration.
 	 */
 	private getBackendUrl(): string {
 		const config = vscode.workspace.getConfiguration('llt-assistant.quality');
@@ -38,132 +49,186 @@ export class QualityBackendClient {
 	}
 
 	/**
-	 * Setup request/response interceptors for logging and error handling
+	 * Setup request/response interceptors for logging.
 	 */
 	private setupInterceptors(): void {
-		// Request interceptor
 		this.client.interceptors.request.use(
 			(config) => {
-				console.log(`[LLT Quality API] ${config.method?.toUpperCase()} ${config.url}`);
+				console.log(`[Quality API] ${config.method?.toUpperCase()} ${config.url}`);
 				return config;
 			},
-			(error) => {
-				return Promise.reject(error);
-			}
+			(error) => Promise.reject(error)
 		);
 
-		// Response interceptor
 		this.client.interceptors.response.use(
 			(response) => {
-				console.log(
-					`[LLT Quality API] Response: ${response.status} ${response.statusText}`
-				);
+				console.log(`[Quality API] Response: ${response.status}`);
 				return response;
 			},
-			(error) => {
-				return Promise.reject(this.handleApiError(error));
-			}
+			(error) => Promise.reject(this.classifyError(error))
 		);
 	}
 
 	/**
-	 * Analyze test files for quality issues
+	 * Analyze files for quality issues.
 	 *
-	 * POST /workflows/analyze-quality
+	 * Automatically chunks large requests to avoid timeouts.
+	 * Results from all chunks are merged into a single response.
+	 *
+	 * @param request - Analysis request with files and mode
+	 * @returns Merged analysis response
 	 */
-	async analyzeQuality(request: AnalyzeQualityRequest): Promise<AnalyzeQualityResponse> {
+	async analyzeQuality(request: QualityAnalysisRequest): Promise<QualityAnalysisResponse> {
+		const { files, mode = 'hybrid' } = request;
+
+		// Small batch: single request
+		if (files.length <= MAX_FILES_PER_CHUNK) {
+			return this.executeWithRetry(request);
+		}
+
+		// Large batch: chunk and merge
+		return this.analyzeInChunks(files, mode);
+	}
+
+	/**
+	 * Split large file list into chunks and merge results.
+	 */
+	private async analyzeInChunks(
+		files: QualityAnalysisRequest['files'],
+		mode: AnalysisMode
+	): Promise<QualityAnalysisResponse> {
+		const chunks: QualityAnalysisRequest['files'][] = [];
+
+		for (let i = 0; i < files.length; i += MAX_FILES_PER_CHUNK) {
+			chunks.push(files.slice(i, i + MAX_FILES_PER_CHUNK));
+		}
+
+		console.log(`[Quality API] Splitting ${files.length} files into ${chunks.length} chunks`);
+
+		// Execute chunks sequentially to avoid overwhelming the backend
+		const results: QualityAnalysisResponse[] = [];
+		for (const chunk of chunks) {
+			const result = await this.executeWithRetry({ files: chunk, mode });
+			results.push(result);
+		}
+
+		// Merge all results
+		return this.mergeResponses(results);
+	}
+
+	/**
+	 * Merge multiple chunk responses into a single response.
+	 */
+	private mergeResponses(responses: QualityAnalysisResponse[]): QualityAnalysisResponse {
+		const allIssues: QualityIssue[] = [];
+		let totalCritical = 0;
+
+		for (const response of responses) {
+			allIssues.push(...response.issues);
+			totalCritical += response.summary.critical_issues;
+		}
+
+		return {
+			analysis_id: responses[0]?.analysis_id || 'merged',
+			summary: {
+				total_files: responses.reduce((sum, r) => sum + (r.summary.total_files || 0), 0),
+				total_issues: allIssues.length,
+				critical_issues: totalCritical
+			},
+			issues: allIssues
+		};
+	}
+
+	/**
+	 * Execute request with exponential backoff retry.
+	 */
+	private async executeWithRetry(request: QualityAnalysisRequest): Promise<QualityAnalysisResponse> {
 		const maxRetries = QUALITY_DEFAULTS.RETRY_MAX_ATTEMPTS;
-		let lastError: any;
+		let lastError: BackendError | null = null;
 
 		for (let attempt = 0; attempt < maxRetries; attempt++) {
 			try {
-				const response = await this.client.post<AnalyzeQualityResponse>(
-					'/workflows/analyze-quality',
+				const response = await this.client.post<QualityAnalysisResponse>(
+					'/quality/analyze',
 					request
 				);
-
 				return response.data;
 			} catch (error) {
-				lastError = error;
+				lastError = error as BackendError;
 
-				// Check if error is retryable (network errors, timeouts, 5xx errors)
-				if (!this.isRetryableError(error)) {
-					throw this.handleApiError(error);
-				}
-
-				// Don't retry on last attempt
-				if (attempt === maxRetries - 1) {
+				if (!this.isRetryable(lastError) || attempt === maxRetries - 1) {
 					break;
 				}
 
-				// Exponential backoff: 1s, 2s, 4s
 				const delayMs = Math.pow(2, attempt) * QUALITY_DEFAULTS.RETRY_BASE_DELAY_MS;
-				console.log(`[LLT Quality API] Retry attempt ${attempt + 1}/${maxRetries} after ${delayMs}ms`);
+				console.log(`[Quality API] Retry ${attempt + 1}/${maxRetries} after ${delayMs}ms`);
 				await this.delay(delayMs);
 			}
 		}
 
-		throw this.handleApiError(lastError);
+		throw lastError;
 	}
 
 	/**
-	 * Health check endpoint
-	 *
-	 * GET /health
+	 * Health check endpoint.
 	 */
 	async healthCheck(): Promise<boolean> {
 		try {
 			const response = await this.client.get<HealthCheckResponse>('/health');
-			return response.status === 200;
-		} catch (error) {
+			return response.status === 200 && response.data.status === 'healthy';
+		} catch {
 			return false;
 		}
 	}
 
 	/**
-	 * Handle API errors and convert to user-friendly messages
+	 * Update backend URL when configuration changes.
 	 */
-	private handleApiError(error: any): BackendError {
+	public updateBackendUrl(): void {
+		const newUrl = this.getBackendUrl();
+		if (newUrl !== this.baseUrl) {
+			this.baseUrl = newUrl;
+			this.client.defaults.baseURL = newUrl;
+			console.log(`[Quality API] Backend URL updated: ${newUrl}`);
+		}
+	}
+
+	/**
+	 * Classify axios errors into structured BackendError.
+	 */
+	private classifyError(error: unknown): BackendError {
 		if (axios.isAxiosError(error)) {
 			const axiosError = error as AxiosError;
 
-			// Network error (backend not reachable)
+			// Network error
 			if (!axiosError.response) {
 				return {
 					type: 'network',
-					message: 'Cannot connect to LLT backend',
+					message: 'Cannot connect to backend',
 					detail: `Please check if backend is running at ${this.baseUrl}`,
 					statusCode: 0
 				};
 			}
 
-			// HTTP error responses
 			const status = axiosError.response.status;
-			const data: any = axiosError.response.data;
+			const data = axiosError.response.data as Record<string, unknown>;
 
-			if (status === 400) {
+			// Validation error
+			if (status === 400 || status === 422) {
 				return {
 					type: 'validation',
 					message: 'Invalid request',
-					detail: data?.detail || 'Request validation failed',
-					statusCode: 400
+					detail: this.extractErrorDetail(data),
+					statusCode: status
 				};
 			}
 
-			if (status === 422) {
-				return {
-					type: 'validation',
-					message: 'Request validation error',
-					detail: this.formatValidationErrors(data?.detail),
-					statusCode: 422
-				};
-			}
-
+			// Server error
 			if (status >= 500) {
 				return {
 					type: 'server',
 					message: 'Backend server error',
-					detail: data?.detail || 'Internal server error',
+					detail: this.extractErrorDetail(data),
 					statusCode: status
 				};
 			}
@@ -172,98 +237,58 @@ export class QualityBackendClient {
 			return {
 				type: 'http',
 				message: `HTTP ${status} error`,
-				detail: data?.detail || axiosError.message,
+				detail: this.extractErrorDetail(data),
 				statusCode: status
 			};
 		}
 
-		// Timeout error
-		if (error.code === 'ECONNABORTED') {
+		// Timeout
+		if ((error as { code?: string }).code === 'ECONNABORTED') {
 			return {
 				type: 'timeout',
 				message: 'Request timeout',
-				detail: 'Backend took too long to respond (>30s)',
+				detail: 'Backend took too long to respond',
 				statusCode: 0
 			};
 		}
 
-		// Unknown error
+		// Unknown
 		return {
 			type: 'unknown',
 			message: 'Unknown error',
-			detail: error.message || String(error),
+			detail: String(error),
 			statusCode: 0
 		};
 	}
 
 	/**
-	 * Format FastAPI validation errors into readable message
+	 * Extract error detail from response data.
 	 */
-	private formatValidationErrors(errors: any[]): string {
-		if (!errors || !Array.isArray(errors)) {
-			return 'Unknown validation error';
+	private extractErrorDetail(data: Record<string, unknown>): string {
+		if (data?.error && typeof data.error === 'string') {
+			return data.error;
 		}
-
-		if (errors.length === 0) {
-			return 'Validation failed with no details';
+		if (data?.detail && typeof data.detail === 'string') {
+			return data.detail;
 		}
-
-		return errors
-			.map(err => {
-				// Ensure err.loc is array before calling join
-				const field = Array.isArray(err.loc) ? err.loc.join('.') : 'unknown';
-				const message = err.msg || 'invalid value';
-				return `${field}: ${message}`;
-			})
-			.join('; ');
+		if (data?.details && typeof data.details === 'object') {
+			return JSON.stringify(data.details);
+		}
+		return 'Unknown error';
 	}
 
 	/**
-	 * Update backend URL from configuration
-	 * Call this when configuration changes
+	 * Check if error is retryable.
 	 */
-	public updateBackendUrl(): void {
-		const newUrl = this.getBackendUrl();
-		if (newUrl !== this.baseUrl) {
-			this.baseUrl = newUrl;
-			this.client.defaults.baseURL = newUrl;
-			console.log(`[LLT Quality API] Backend URL updated to: ${newUrl}`);
-		}
+	private isRetryable(error: BackendError): boolean {
+		return error.type === 'network' ||
+			error.type === 'server' ||
+			error.type === 'timeout' ||
+			error.statusCode === 429;
 	}
 
 	/**
-	 * Check if an error is retryable
-	 */
-	private isRetryableError(error: any): boolean {
-		if (axios.isAxiosError(error)) {
-			const axiosError = error as AxiosError;
-
-			// Network errors (no response)
-			if (!axiosError.response) {
-				return true;
-			}
-
-			// Server errors (5xx)
-			if (axiosError.response.status >= 500) {
-				return true;
-			}
-
-			// Rate limiting (429)
-			if (axiosError.response.status === 429) {
-				return true;
-			}
-		}
-
-		// Timeout errors
-		if (error.code === 'ECONNABORTED') {
-			return true;
-		}
-
-		return false;
-	}
-
-	/**
-	 * Delay helper for retry backoff
+	 * Delay helper for retry backoff.
 	 */
 	private delay(ms: number): Promise<void> {
 		return new Promise(resolve => setTimeout(resolve, ms));

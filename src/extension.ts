@@ -113,7 +113,7 @@ export function activate(context: vscode.ExtensionContext) {
 		await analyzeCommand.execute();
 		const result = qualityTreeProvider.getAnalysisResult();
 		if (result) {
-			const criticalCount = result.metrics.severity_breakdown?.error || 0;
+			const criticalCount = result.summary.critical_issues;
 			qualityStatusBar.showResults(result.issues.length, criticalCount);
 
 			// Update decorations and suggestions

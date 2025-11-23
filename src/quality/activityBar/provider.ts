@@ -1,32 +1,33 @@
 /**
- * Tree View Data Provider for Quality Analysis Results
+ * Tree View Data Provider for Quality Analysis Results (Feature 4)
+ *
+ * Displays quality issues in a hierarchical tree view:
+ * - Summary node with statistics
+ * - File nodes grouped by path
+ * - Issue nodes with severity indicators
  */
 
 import * as vscode from 'vscode';
-import { AnalyzeQualityResponse, QualityIssue, IssueSeverity } from '../api/types';
+import { QualityAnalysisResponse, QualityIssue, IssueSeverity } from '../api/types';
 import { TreeItemType, QualityTreeItem } from './types';
 import { QualityConfigManager } from '../utils/config';
 
 export class QualityTreeProvider implements vscode.TreeDataProvider<QualityTreeItem> {
-	private _onDidChangeTreeData: vscode.EventEmitter<QualityTreeItem | undefined> =
-		new vscode.EventEmitter<QualityTreeItem | undefined>();
-	readonly onDidChangeTreeData: vscode.Event<QualityTreeItem | undefined> =
-		this._onDidChangeTreeData.event;
+	private _onDidChangeTreeData = new vscode.EventEmitter<QualityTreeItem | undefined>();
+	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-	private analysisResult: AnalyzeQualityResponse | null = null;
-
-	constructor() {}
+	private analysisResult: QualityAnalysisResponse | null = null;
 
 	/**
-	 * Refresh the tree view with new analysis results
+	 * Refresh the tree view with new analysis results.
 	 */
-	public refresh(result: AnalyzeQualityResponse): void {
+	public refresh(result: QualityAnalysisResponse): void {
 		this.analysisResult = result;
 		this._onDidChangeTreeData.fire(undefined);
 	}
 
 	/**
-	 * Clear all issues from the tree view
+	 * Clear all issues from the tree view.
 	 */
 	public clear(): void {
 		this.analysisResult = null;
@@ -34,51 +35,47 @@ export class QualityTreeProvider implements vscode.TreeDataProvider<QualityTreeI
 	}
 
 	/**
-	 * Get tree item for display in the view
+	 * Get current analysis result.
 	 */
-	getTreeItem(element: QualityTreeItem): vscode.TreeItem {
-		const treeItem = new vscode.TreeItem(
-			element.label,
-			element.collapsibleState
-		);
+	public getAnalysisResult(): QualityAnalysisResponse | null {
+		return this.analysisResult;
+	}
 
+	/**
+	 * Get all issues (for external consumers like DiagnosticManager).
+	 */
+	public getIssues(): QualityIssue[] {
+		return this.analysisResult?.issues || [];
+	}
+
+	getTreeItem(element: QualityTreeItem): vscode.TreeItem {
+		const treeItem = new vscode.TreeItem(element.label, element.collapsibleState);
 		treeItem.description = element.description;
 		treeItem.tooltip = element.tooltip;
 		treeItem.iconPath = element.iconPath;
 		treeItem.contextValue = element.contextValue;
 		treeItem.command = element.command;
-
 		return treeItem;
 	}
 
-	/**
-	 * Get children for a tree item
-	 * Root level: returns [Summary, File1, File2, ...]
-	 * File level: returns [Issue1, Issue2, ...]
-	 * Issue level: returns []
-	 */
-	getChildren(element?: QualityTreeItem): Thenable<QualityTreeItem[]> {
+	getChildren(element?: QualityTreeItem): QualityTreeItem[] {
 		if (!this.analysisResult) {
-			// No analysis run yet - show empty state
-			return Promise.resolve([this.createEmptyStateItem()]);
+			return [this.createEmptyStateItem()];
 		}
 
 		if (!element) {
-			// Root level - return summary + files
-			return Promise.resolve(this.getRootItems());
+			return this.getRootItems();
 		}
 
 		if (element.type === TreeItemType.File) {
-			// File level - return issues for this file
-			return Promise.resolve(this.getIssuesForFile(element.filePath!));
+			return this.getIssuesForFile(element.filePath!);
 		}
 
-		// Issue level - no children
-		return Promise.resolve([]);
+		return [];
 	}
 
 	/**
-	 * Get filtered issues based on severity filter configuration
+	 * Get filtered issues based on severity filter.
 	 */
 	private getFilteredIssues(): QualityIssue[] {
 		if (!this.analysisResult) {
@@ -86,10 +83,7 @@ export class QualityTreeProvider implements vscode.TreeDataProvider<QualityTreeI
 		}
 
 		const severityFilter = QualityConfigManager.getSeverityFilter();
-
-		// If filter is empty, show all issues
 		if (severityFilter.length === 0) {
-			console.warn('[LLT Quality] Severity filter is empty, showing all issues');
 			return this.analysisResult.issues;
 		}
 
@@ -99,18 +93,12 @@ export class QualityTreeProvider implements vscode.TreeDataProvider<QualityTreeI
 	}
 
 	/**
-	 * Get root level items (summary + files)
+	 * Get root level items (summary + files).
 	 */
 	private getRootItems(): QualityTreeItem[] {
-		const items: QualityTreeItem[] = [];
+		const items: QualityTreeItem[] = [this.createSummaryItem()];
 
-		// Add summary item
-		items.push(this.createSummaryItem());
-
-		// Group issues by file (with severity filtering)
 		const fileMap = this.groupIssuesByFile();
-
-		// Add file items
 		for (const [filePath, issues] of fileMap.entries()) {
 			items.push(this.createFileItem(filePath, issues));
 		}
@@ -119,86 +107,82 @@ export class QualityTreeProvider implements vscode.TreeDataProvider<QualityTreeI
 	}
 
 	/**
-	 * Create summary item
+	 * Create summary item.
 	 */
 	private createSummaryItem(): QualityTreeItem {
-		const metrics = this.analysisResult!.metrics;
-		const breakdown = metrics.severity_breakdown;
+		const summary = this.analysisResult!.summary;
+		const filteredIssues = this.getFilteredIssues();
 
 		const tooltip = new vscode.MarkdownString();
-		tooltip.appendMarkdown(`**Test Quality Overview**\n\n`);
-		tooltip.appendMarkdown(`- Total Tests: ${metrics.total_tests}\n`);
-		tooltip.appendMarkdown(`- Issues Found: ${metrics.issues_count}\n`);
-		if (breakdown) {
-			tooltip.appendMarkdown(`- Critical: ${breakdown.error}\n`);
-			tooltip.appendMarkdown(`- Warning: ${breakdown.warning}\n`);
-			tooltip.appendMarkdown(`- Info: ${breakdown.info}\n`);
+		tooltip.appendMarkdown('**Quality Analysis Summary**\n\n');
+		tooltip.appendMarkdown(`- Total Issues: ${summary.total_issues}\n`);
+		tooltip.appendMarkdown(`- Critical: ${summary.critical_issues}\n`);
+		if (summary.total_files) {
+			tooltip.appendMarkdown(`- Files Analyzed: ${summary.total_files}\n`);
 		}
-		tooltip.appendMarkdown(`- Analysis Time: ${metrics.analysis_time_ms}ms\n`);
 
 		return {
 			type: TreeItemType.Summary,
-			label: '📊 Test Quality Overview',
-			description: `${metrics.issues_count} ${metrics.issues_count === 1 ? 'issue' : 'issues'} found`,
-			tooltip: tooltip,
+			label: 'Quality Overview',
+			description: `${filteredIssues.length} issue${filteredIssues.length === 1 ? '' : 's'}`,
+			tooltip,
 			collapsibleState: vscode.TreeItemCollapsibleState.None,
-			contextValue: 'summary'
+			contextValue: 'summary',
+			iconPath: new vscode.ThemeIcon('checklist')
 		};
 	}
 
 	/**
-	 * Create file item
+	 * Create file item.
 	 */
 	private createFileItem(filePath: string, issues: QualityIssue[]): QualityTreeItem {
 		const fileName = filePath.split('/').pop() || filePath;
-		const criticalCount = issues.filter(
-			i => i.severity === 'error'
-		).length;
+		const criticalCount = issues.filter(i => i.severity === 'error').length;
 
 		const tooltip = new vscode.MarkdownString();
 		tooltip.appendMarkdown(`**${filePath}**\n\n`);
-		tooltip.appendMarkdown(`- Total Issues: ${issues.length}\n`);
+		tooltip.appendMarkdown(`- Issues: ${issues.length}\n`);
 		tooltip.appendMarkdown(`- Critical: ${criticalCount}\n`);
 
 		return {
 			type: TreeItemType.File,
 			label: fileName,
-			description: `${issues.length} ${issues.length === 1 ? 'issue' : 'issues'}`,
-			tooltip: tooltip,
+			description: `${issues.length} issue${issues.length === 1 ? '' : 's'}`,
+			tooltip,
 			collapsibleState: vscode.TreeItemCollapsibleState.Expanded,
 			contextValue: 'file',
-			filePath: filePath,
+			filePath,
 			issueCount: issues.length,
 			iconPath: new vscode.ThemeIcon('file-code')
 		};
 	}
 
 	/**
-	 * Create issue item
+	 * Create issue item.
 	 */
 	private createIssueItem(issue: QualityIssue): QualityTreeItem {
-		const icon = this.getIconForSeverity(issue.severity);
-		const label = `Line ${issue.line}: ${this.formatIssueType(issue.type)}`;
+		const icon = this.getSeverityIcon(issue.severity);
+		const codeLabel = this.formatCode(issue.code);
 
 		const tooltip = new vscode.MarkdownString();
-		tooltip.appendMarkdown(`**${this.formatIssueType(issue.type)}**\n\n`);
+		tooltip.appendMarkdown(`**${codeLabel}**\n\n`);
 		tooltip.appendMarkdown(`${issue.message}\n\n`);
-		tooltip.appendMarkdown(`*Detected by: ${issue.detected_by === 'llm' ? '🤖 AI' : '⚡ Rule Engine'}*\n\n`);
-		if (issue.suggestion.explanation) {
-			tooltip.appendMarkdown(`**Suggestion:** ${issue.suggestion.explanation}\n`);
+		tooltip.appendMarkdown(`*Detected by: ${issue.detected_by === 'llm' ? 'AI' : 'Rule'}*\n`);
+		if (issue.suggestion) {
+			tooltip.appendMarkdown(`\n**Suggestion:** ${issue.suggestion.description}\n`);
 		}
 
 		return {
 			type: TreeItemType.Issue,
-			label: label,
-			description: issue.detected_by === 'llm' ? '🤖 AI' : '⚡ Rule',
-			tooltip: tooltip,
+			label: `Line ${issue.line}: ${codeLabel}`,
+			description: issue.detected_by === 'llm' ? 'AI' : 'Rule',
+			tooltip,
 			collapsibleState: vscode.TreeItemCollapsibleState.None,
 			contextValue: 'issue',
-			issue: issue,
+			issue,
 			iconPath: icon,
 			command: {
-				command: 'llt-assistant.showIssue',
+				command: 'llt-assistant.quality.showIssue',
 				title: 'Show Issue',
 				arguments: [issue]
 			}
@@ -206,9 +190,9 @@ export class QualityTreeProvider implements vscode.TreeDataProvider<QualityTreeI
 	}
 
 	/**
-	 * Get icon for severity level
+	 * Get icon for severity level.
 	 */
-	private getIconForSeverity(severity: IssueSeverity): vscode.ThemeIcon {
+	private getSeverityIcon(severity: IssueSeverity): vscode.ThemeIcon {
 		switch (severity) {
 			case 'error':
 				return new vscode.ThemeIcon('error', new vscode.ThemeColor('errorForeground'));
@@ -220,29 +204,28 @@ export class QualityTreeProvider implements vscode.TreeDataProvider<QualityTreeI
 	}
 
 	/**
-	 * Format issue type for display
+	 * Format issue code for display (e.g., "redundant-assertion" -> "Redundant Assertion").
 	 */
-	private formatIssueType(type: string): string {
-		// Convert "duplicate-assertion" to "Duplicate Assertion"
-		return type
+	private formatCode(code: string): string {
+		return code
 			.split('-')
 			.map(word => word.charAt(0).toUpperCase() + word.slice(1))
 			.join(' ');
 	}
 
 	/**
-	 * Group issues by file (with severity filtering applied)
+	 * Group issues by file path.
 	 */
 	private groupIssuesByFile(): Map<string, QualityIssue[]> {
 		const fileMap = new Map<string, QualityIssue[]>();
 		const filteredIssues = this.getFilteredIssues();
 
 		for (const issue of filteredIssues) {
-			const issues = fileMap.get(issue.file);
-			if (issues) {
-				issues.push(issue);
+			const existing = fileMap.get(issue.file_path);
+			if (existing) {
+				existing.push(issue);
 			} else {
-				fileMap.set(issue.file, [issue]);
+				fileMap.set(issue.file_path, [issue]);
 			}
 		}
 
@@ -250,35 +233,28 @@ export class QualityTreeProvider implements vscode.TreeDataProvider<QualityTreeI
 	}
 
 	/**
-	 * Get issues for a specific file (with severity filtering applied)
+	 * Get issues for a specific file.
 	 */
 	private getIssuesForFile(filePath: string): QualityTreeItem[] {
 		const filteredIssues = this.getFilteredIssues();
-		const issues = filteredIssues.filter(i => i.file === filePath);
-
-		// Sort by line number
-		issues.sort((a, b) => a.line - b.line);
+		const issues = filteredIssues
+			.filter(i => i.file_path === filePath)
+			.sort((a, b) => a.line - b.line);
 
 		return issues.map(issue => this.createIssueItem(issue));
 	}
 
 	/**
-	 * Create empty state item
+	 * Create empty state item.
 	 */
 	private createEmptyStateItem(): QualityTreeItem {
 		return {
 			type: TreeItemType.Empty,
-			label: '🔍 No analysis run yet',
-			description: 'Click "Analyze Tests" to start',
+			label: 'No analysis run yet',
+			description: 'Click "Analyze Quality" to start',
 			collapsibleState: vscode.TreeItemCollapsibleState.None,
-			contextValue: 'empty'
+			contextValue: 'empty',
+			iconPath: new vscode.ThemeIcon('search')
 		};
-	}
-
-	/**
-	 * Get current analysis result
-	 */
-	public getAnalysisResult(): AnalyzeQualityResponse | null {
-		return this.analysisResult;
 	}
 }

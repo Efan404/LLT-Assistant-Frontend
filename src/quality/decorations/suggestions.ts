@@ -1,74 +1,83 @@
 /**
- * Code Action Provider for Fix Suggestions
- * Provides quick fix actions (lightbulb) for quality issues
+ * Code Action Provider for Quick Fixes (Feature 4)
+ *
+ * Provides zero-latency quick fix actions (lightbulb) for quality issues.
+ * Uses pre-loaded suggestions from analysis response - no network requests needed.
+ *
+ * Supports three fix types:
+ * - delete: Remove problematic code
+ * - replace: Replace with suggested code
+ * - insert: Insert suggested code
  */
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { QualityIssue } from '../api/types';
+import { QualityIssue, IssueSeverity } from '../api/types';
+import { QUALITY_DIAGNOSTIC_SOURCE } from '../utils/constants';
 
 export class QualitySuggestionProvider implements vscode.CodeActionProvider {
-	private issuesByFile: Map<string, QualityIssue[]> = new Map();
+	private issuesByFile = new Map<string, QualityIssue[]>();
 
 	public static readonly providedCodeActionKinds = [
 		vscode.CodeActionKind.QuickFix
 	];
 
 	/**
-	 * Update issues for suggestion generation
+	 * Update issues for suggestion generation.
 	 */
 	public updateIssues(issues: QualityIssue[]): void {
 		this.issuesByFile.clear();
+
 		for (const issue of issues) {
-			const fileIssues = this.issuesByFile.get(issue.file);
-			if (fileIssues) {
-				fileIssues.push(issue);
+			const existing = this.issuesByFile.get(issue.file_path);
+			if (existing) {
+				existing.push(issue);
 			} else {
-				this.issuesByFile.set(issue.file, [issue]);
+				this.issuesByFile.set(issue.file_path, [issue]);
 			}
 		}
 	}
 
 	/**
-	 * Clear all issues
+	 * Clear all issues.
 	 */
 	public clear(): void {
 		this.issuesByFile.clear();
 	}
 
 	/**
-	 * Provide code actions for a given document and range
-	 * Called by VSCode when user clicks lightbulb or uses Cmd+.
+	 * Provide code actions for a given document and range.
+	 * Called by VSCode when user clicks lightbulb or uses Cmd+. / Ctrl+.
+	 *
+	 * This method reads from memory cache - no network requests.
 	 */
 	public provideCodeActions(
 		document: vscode.TextDocument,
 		range: vscode.Range | vscode.Selection,
-		context: vscode.CodeActionContext,
-		token: vscode.CancellationToken
+		_context: vscode.CodeActionContext,
+		_token: vscode.CancellationToken
 	): vscode.CodeAction[] | undefined {
 		const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
 		if (!workspaceRoot) {
-			console.warn('[LLT Quality] No workspace folder found, cannot provide code actions');
 			return;
 		}
 
-		// Use path.relative for cross-platform compatibility
 		const relativePath = path.relative(workspaceRoot, document.uri.fsPath)
-			.replace(/\\/g, '/'); // Normalize to forward slashes
+			.replace(/\\/g, '/');
 
 		const issues = this.issuesByFile.get(relativePath) || [];
 
-		// Find issues that intersect with the current cursor position/selection
+		// Find issues that intersect with the cursor position
 		const relevantIssues = issues.filter(issue => {
-			const issueLine = issue.line - 1; // Convert to 0-indexed
+			const issueLine = issue.line - 1; // Convert to 0-based
 			return range.start.line <= issueLine && issueLine <= range.end.line;
 		});
 
 		if (relevantIssues.length === 0) {
-			return undefined;
+			return;
 		}
 
-		// Create code actions for each relevant issue
+		// Create code actions for each issue
 		const actions: vscode.CodeAction[] = [];
 
 		for (const issue of relevantIssues) {
@@ -82,7 +91,7 @@ export class QualitySuggestionProvider implements vscode.CodeActionProvider {
 	}
 
 	/**
-	 * Create a code action for a specific issue
+	 * Create a code action for a specific issue.
 	 */
 	private createCodeAction(
 		document: vscode.TextDocument,
@@ -90,65 +99,67 @@ export class QualitySuggestionProvider implements vscode.CodeActionProvider {
 	): vscode.CodeAction | undefined {
 		const suggestion = issue.suggestion;
 
-		// Create the code action based on suggestion type
-		switch (suggestion.action) {
-			case 'remove':
-				return this.createRemoveAction(document, issue);
+		if (!suggestion) {
+			return;
+		}
+
+		switch (suggestion.type) {
+			case 'delete':
+				return this.createDeleteAction(document, issue);
 			case 'replace':
 				return this.createReplaceAction(document, issue);
-			case 'add':
-				return this.createAddAction(document, issue);
+			case 'insert':
+				return this.createInsertAction(document, issue);
 			default:
-				return undefined;
+				return;
 		}
 	}
 
 	/**
-	 * Create a "Remove" code action
+	 * Create a "Delete" code action.
 	 */
-	private createRemoveAction(
+	private createDeleteAction(
 		document: vscode.TextDocument,
 		issue: QualityIssue
 	): vscode.CodeAction | undefined {
 		const line = issue.line - 1;
 		if (line >= document.lineCount) {
-			return undefined;
+			return;
 		}
 
 		const action = new vscode.CodeAction(
-			`🔧 LLT: Remove ${this.formatIssueType(issue.type)}`,
+			issue.suggestion!.description || `Fix: Remove ${this.formatCode(issue.code)}`,
 			vscode.CodeActionKind.QuickFix
 		);
 
 		action.edit = new vscode.WorkspaceEdit();
 
-		// Remove the entire line
+		// Delete the entire line including line break
 		const lineRange = document.lineAt(line).rangeIncludingLineBreak;
 		action.edit.delete(document.uri, lineRange);
 
-		// Add diagnostic information
 		action.diagnostics = [this.createDiagnostic(document, issue)];
-
-		// Mark as preferred (will be suggested first)
-		action.isPreferred = issue.detected_by === 'rule_engine';
+		action.isPreferred = issue.detected_by === 'rule';
 
 		return action;
 	}
 
 	/**
-	 * Create a "Replace" code action
+	 * Create a "Replace" code action.
 	 */
 	private createReplaceAction(
 		document: vscode.TextDocument,
 		issue: QualityIssue
 	): vscode.CodeAction | undefined {
 		const line = issue.line - 1;
-		if (line >= document.lineCount || !issue.suggestion.new_code) {
-			return undefined;
+		const newText = issue.suggestion?.new_text;
+
+		if (line >= document.lineCount || !newText) {
+			return;
 		}
 
 		const action = new vscode.CodeAction(
-			`🔧 LLT: Fix ${this.formatIssueType(issue.type)}`,
+			issue.suggestion!.description || `Fix: ${this.formatCode(issue.code)}`,
 			vscode.CodeActionKind.QuickFix
 		);
 
@@ -157,35 +168,36 @@ export class QualitySuggestionProvider implements vscode.CodeActionProvider {
 		const lineText = document.lineAt(line).text;
 		const lineRange = document.lineAt(line).range;
 
-		// Preserve indentation
+		// Preserve original indentation
 		const indentation = lineText.match(/^\s*/)?.[0] || '';
-		const newCode = issue.suggestion.new_code;
-		const newCodeWithIndent = newCode.startsWith(indentation)
-			? newCode
-			: indentation + newCode.trim();
+		const newTextWithIndent = newText.startsWith(indentation)
+			? newText
+			: indentation + newText.trim();
 
-		action.edit.replace(document.uri, lineRange, newCodeWithIndent);
+		action.edit.replace(document.uri, lineRange, newTextWithIndent);
 
 		action.diagnostics = [this.createDiagnostic(document, issue)];
-		action.isPreferred = issue.detected_by === 'rule_engine';
+		action.isPreferred = issue.detected_by === 'rule';
 
 		return action;
 	}
 
 	/**
-	 * Create an "Add" code action
+	 * Create an "Insert" code action.
 	 */
-	private createAddAction(
+	private createInsertAction(
 		document: vscode.TextDocument,
 		issue: QualityIssue
 	): vscode.CodeAction | undefined {
 		const line = issue.line - 1;
-		if (line >= document.lineCount || !issue.suggestion.new_code) {
-			return undefined;
+		const newText = issue.suggestion?.new_text;
+
+		if (line >= document.lineCount || !newText) {
+			return;
 		}
 
 		const action = new vscode.CodeAction(
-			`🔧 LLT: Add ${this.formatIssueType(issue.type)}`,
+			issue.suggestion!.description || `Fix: Add ${this.formatCode(issue.code)}`,
 			vscode.CodeActionKind.QuickFix
 		);
 
@@ -193,13 +205,11 @@ export class QualitySuggestionProvider implements vscode.CodeActionProvider {
 
 		const lineText = document.lineAt(line).text;
 		const indentation = lineText.match(/^\s*/)?.[0] || '';
-
-		const newCode = issue.suggestion.new_code;
-		const newCodeWithIndent = indentation + newCode.trim() + '\n';
+		const newTextWithIndent = indentation + newText.trim() + '\n';
 
 		// Insert after the current line
 		const insertPosition = new vscode.Position(line + 1, 0);
-		action.edit.insert(document.uri, insertPosition, newCodeWithIndent);
+		action.edit.insert(document.uri, insertPosition, newTextWithIndent);
 
 		action.diagnostics = [this.createDiagnostic(document, issue)];
 		action.isPreferred = false; // Adding code is more risky
@@ -208,20 +218,22 @@ export class QualitySuggestionProvider implements vscode.CodeActionProvider {
 	}
 
 	/**
-	 * Create a diagnostic for the issue
-	 * This makes the issue appear in the Problems panel
+	 * Create a diagnostic for the issue.
 	 */
 	private createDiagnostic(
 		document: vscode.TextDocument,
 		issue: QualityIssue
 	): vscode.Diagnostic {
 		const line = issue.line - 1;
+
 		if (line >= document.lineCount) {
-			return new vscode.Diagnostic(
+			const diagnostic = new vscode.Diagnostic(
 				new vscode.Range(0, 0, 0, 0),
 				issue.message,
 				vscode.DiagnosticSeverity.Warning
 			);
+			diagnostic.source = QUALITY_DIAGNOSTIC_SOURCE;
+			return diagnostic;
 		}
 
 		const lineText = document.lineAt(line).text;
@@ -232,24 +244,22 @@ export class QualitySuggestionProvider implements vscode.CodeActionProvider {
 			new vscode.Position(line, lineText.length)
 		);
 
-		const severity = this.getSeverity(issue.severity);
-
 		const diagnostic = new vscode.Diagnostic(
 			range,
 			issue.message,
-			severity
+			this.getSeverity(issue.severity)
 		);
 
-		diagnostic.source = 'LLT Quality';
-		diagnostic.code = issue.type;
+		diagnostic.source = QUALITY_DIAGNOSTIC_SOURCE;
+		diagnostic.code = issue.code;
 
 		return diagnostic;
 	}
 
 	/**
-	 * Convert issue severity to VSCode diagnostic severity
+	 * Convert issue severity to VSCode diagnostic severity.
 	 */
-	private getSeverity(severity: string): vscode.DiagnosticSeverity {
+	private getSeverity(severity: IssueSeverity): vscode.DiagnosticSeverity {
 		switch (severity) {
 			case 'error':
 				return vscode.DiagnosticSeverity.Error;
@@ -257,17 +267,14 @@ export class QualitySuggestionProvider implements vscode.CodeActionProvider {
 				return vscode.DiagnosticSeverity.Warning;
 			case 'info':
 				return vscode.DiagnosticSeverity.Information;
-			default:
-				return vscode.DiagnosticSeverity.Hint;
 		}
 	}
 
 	/**
-	 * Format issue type for display
+	 * Format issue code for display.
 	 */
-	private formatIssueType(type: string): string {
-		// Convert "duplicate-assertion" to "Duplicate Assertion"
-		return type
+	private formatCode(code: string): string {
+		return code
 			.split('-')
 			.map(word => word.charAt(0).toUpperCase() + word.slice(1))
 			.join(' ');
