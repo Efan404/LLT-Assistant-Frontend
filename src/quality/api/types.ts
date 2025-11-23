@@ -130,15 +130,3 @@ export interface BackendError {
 	detail: string;
 	statusCode: number;
 }
-
-// ============================================================================
-// Health Check
-// ============================================================================
-
-/**
- * Health check response.
- */
-export interface HealthCheckResponse {
-	status: 'healthy' | 'degraded';
-	version?: string;
-}

@@ -84,11 +84,11 @@ LLT Assistant is a comprehensive testing toolkit that helps developers:
 
 ### For Test Generation
 - No API key required! Just install and use.
-- Backend service: `https://llt-assistant.fly.dev`
+- Backend service: `https://cs5351.efan.dev`
 
 ### For Quality Analysis
-- Backend service running at `http://localhost:8886` (for local development)
-- Or use production backend: `https://llt-assistant.fly.dev`
+- Shares the same backend service with test generation
+- No separate configuration needed
 
 ### For Development
 - **Node.js**: 18 or higher
@@ -148,29 +148,22 @@ Open VSCode Settings (`Ctrl+,` / `Cmd+,`) and search for "LLT Assistant":
 
 #### Quality Analysis Settings
 
-1. **Backend URL** (`llt-assistant.quality.backendUrl`)
-   - Default: `http://localhost:8886` (for local development)
-   - Production: `https://llt-assistant.fly.dev`
-
-2. **Analysis Mode** (`llt-assistant.quality.analysisMode`)
+1. **Analysis Mode** (`llt-assistant.quality.analysisMode`)
    - `hybrid` (default): Rule engine + AI for uncertain cases - **Best results**
    - `rules-only`: Fast rule-based analysis
    - `llm-only`: AI-powered deep analysis
 
-3. **Auto Analyze** (`llt-assistant.quality.autoAnalyze`)
+2. **Auto Analyze** (`llt-assistant.quality.autoAnalyze`)
    - `false` (default): Manual analysis only
    - `true`: Auto-analyze when opening test files
 
-4. **Visual Settings**
+3. **Visual Settings**
    - **Enable Inline Decorations** (`llt-assistant.quality.enableInlineDecorations`): Show colored underlines (default: `true`)
    - **Enable Code Actions** (`llt-assistant.quality.enableCodeActions`): Show lightbulb fix suggestions (default: `true`)
 
-5. **Filtering**
+4. **Filtering**
    - **Severity Filter** (`llt-assistant.quality.severityFilter`): Array of `["error", "warning", "info"]`
    - **Disabled Rules** (`llt-assistant.quality.disabledRules`): Array of rule IDs to disable, e.g., `["trivial-assertion"]`
-
-6. **LLM Settings**
-   - **LLM Temperature** (`llt-assistant.quality.llmTemperature`): 0-1 (default: 0.3)
 
 ### Getting API Keys (For Direct Mode Only)
 
@@ -326,14 +319,11 @@ This extension contributes the following settings:
 * `llt-assistant.maxTokens`: Maximum tokens for LLM response (for direct mode)
 
 ### Quality Analysis
-* `llt-assistant.quality.backendUrl`: Backend API URL for quality analysis
 * `llt-assistant.quality.analysisMode`: Analysis mode - `rules-only`, `llm-only`, or `hybrid`
 * `llt-assistant.quality.autoAnalyze`: Auto-analyze when opening test files
 * `llt-assistant.quality.enableInlineDecorations`: Show inline decorations
 * `llt-assistant.quality.enableCodeActions`: Show quick fix suggestions
 * `llt-assistant.quality.severityFilter`: Array of severity levels to display
-* `llt-assistant.quality.disabledRules`: Array of rule IDs to disable
-* `llt-assistant.quality.llmTemperature`: Temperature for LLM quality analysis 0-1
 
 ## Project Structure
 
@@ -518,19 +508,11 @@ The quality analysis feature provides intelligent test quality checking:
 **Visual Feedback System:**
 - **Activity Bar**: Custom tree view with issue overview
 - **Inline Decorations**: Color-coded underlines in editor
-- **Hover Tooltips**: Detailed issue information
 - **Problems Panel**: Standard VSCode integration
 
-**Code Action Provider:**
+**Smart Fixes:**
 - Suggests fixes via lightbulb icon
-- Three fix types: Remove, Replace, Add
 - One-click application with preview
-
-**Backend Integration:**
-- RESTful API communication
-- Health check and retry logic
-- Request/response type safety
-- Error handling and user feedback
 
 ## Contributing
 

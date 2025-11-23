@@ -15,8 +15,7 @@ import {
 	QualityAnalysisResponse,
 	QualityIssue,
 	AnalysisMode,
-	BackendError,
-	HealthCheckResponse
+	BackendError
 } from './types';
 import { BackendUrlConfig } from '../../utils/config';
 import { QUALITY_DEFAULTS } from '../utils/constants';
@@ -167,18 +166,6 @@ export class QualityBackendClient {
 		}
 
 		throw lastError;
-	}
-
-	/**
-	 * Health check endpoint.
-	 */
-	async healthCheck(): Promise<boolean> {
-		try {
-			const response = await this.client.get<HealthCheckResponse>('/health');
-			return response.status === 200 && response.data.status === 'healthy';
-		} catch {
-			return false;
-		}
 	}
 
 	/**
