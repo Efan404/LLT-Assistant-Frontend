@@ -71,48 +71,6 @@ export interface CoverageReport {
 }
 
 /**
- * Request to generate coverage tests for a specific function
- */
-export interface GenerateCoverageTestRequest {
-	filePath: string;
-	functionName: string;
-	functionCode: string;
-	uncoveredBranches?: BranchInfo[];
-	existingTests?: string;
-	context?: {
-		imports?: string;
-		relatedClasses?: string;
-		fixtures?: string;
-	};
-}
-
-/**
- * Response from coverage test generation
- */
-export interface GenerateCoverageTestResponse {
-	generatedTests: string;
-	explanation: string;
-	targetCoverage?: number;
-	coveredBranches?: string[];
-}
-
-/**
- * Batch request to generate tests for multiple functions
- */
-export interface BatchGenerateCoverageTestRequest {
-	requests: GenerateCoverageTestRequest[];
-}
-
-/**
- * Batch response for multiple test generations
- */
-export interface BatchGenerateCoverageTestResponse {
-	results: GenerateCoverageTestResponse[];
-	totalGenerated: number;
-	failures?: string[];
-}
-
-/**
  * Coverage comparison result
  */
 export interface CoverageComparison {
@@ -145,4 +103,50 @@ export interface CoverageBackendError {
 	message: string;
 	detail: string;
 	statusCode?: number;
+}
+
+/**
+ * Uncovered range information (lines or branches)
+ */
+export interface UncoveredRange {
+	start_line: number;
+	end_line: number;
+	type: 'line' | 'branch';
+}
+
+/**
+ * Coverage optimization request
+ */
+export interface CoverageOptimizationRequest {
+	source_code: string;
+	existing_test_code: string;
+	uncovered_ranges: UncoveredRange[];
+	framework: string;
+}
+
+/**
+ * Recommended test from optimization result
+ */
+export interface RecommendedTest {
+	test_code: string;
+	target_line: number;
+	scenario_description: string;
+	expected_coverage_impact: string;
+}
+
+/**
+ * Coverage optimization result
+ */
+export interface CoverageOptimizationResult {
+	recommended_tests: RecommendedTest[];
+}
+
+/**
+ * Task status response for async operations
+ */
+export interface TaskStatusResponse {
+	task_id: string;
+	status: 'pending' | 'processing' | 'completed' | 'failed';
+	estimated_time_seconds?: number;
+	result?: CoverageOptimizationResult;
 }

@@ -212,21 +212,19 @@ export class CoverageTreeDataProvider implements vscode.TreeDataProvider<Coverag
 			if (func.complexity) {
 				tooltip.appendMarkdown(`Complexity: ${func.complexity}\n\n`);
 			}
-			tooltip.appendMarkdown(`\n\n💡 Click to generate tests`);
-
 			items.push({
 				type: CoverageTreeItemType.UncoveredFunction,
 				label: func.name,
 				description: `Lines ${func.startLine}-${func.endLine}`,
 				tooltip,
-				iconPath: new vscode.ThemeIcon('circle-slash', new vscode.ThemeColor('errorForeground')),
+				iconPath: new vscode.ThemeIcon('error', new vscode.ThemeColor('errorForeground')),
 				collapsibleState: vscode.TreeItemCollapsibleState.None,
 				contextValue: 'uncovered-function',
 				functionData: func,
 				filePath: fileData.filePath,
 				command: {
-					command: 'llt-assistant.generateCoverageTest',
-					title: 'Generate Test',
+					command: 'llt-assistant.showCoverageItem',
+					title: 'Show coverage item',
 					arguments: [fileData.filePath, func]
 				}
 			});
@@ -272,7 +270,6 @@ export class CoverageTreeDataProvider implements vscode.TreeDataProvider<Coverag
 			tooltip.appendMarkdown(`Type: \`${branch.type}\`\n\n`);
 			tooltip.appendMarkdown(`Line: ${branch.line}\n\n`);
 			tooltip.appendMarkdown(`${branch.description}\n\n`);
-
 			return {
 				type: CoverageTreeItemType.Branch,
 				label: `${branch.type} - Line ${branch.line}`,
@@ -284,9 +281,9 @@ export class CoverageTreeDataProvider implements vscode.TreeDataProvider<Coverag
 				branchInfo: branch,
 				filePath: element.filePath,
 				command: {
-					command: 'llt-assistant.goToLine',
-					title: 'Go to Line',
-					arguments: [element.filePath, branch.line]
+					command: 'llt-assistant.showCoverageItem',
+					title: 'Show coverage item',
+					arguments: [element.filePath, { startLine: branch.line, endLine: branch.line, type: 'branch' }]
 				}
 			};
 		});

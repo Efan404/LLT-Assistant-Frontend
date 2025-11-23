@@ -29,6 +29,8 @@ import {
 	CoverageTreeDataProvider,
 	CoverageCommands
 } from './coverage';
+import { CoverageCodeLensProvider } from './coverage/codelens/coverageCodeLensProvider';
+import { ReviewCodeLensProvider, InlinePreviewManager } from './coverage/preview';
 import {
 	ImpactAnalysisClient,
 	ImpactTreeProvider,
@@ -231,7 +233,32 @@ export function activate(context: vscode.ExtensionContext) {
 	// Initialize coverage optimization components
 	const coverageBackendClient = new CoverageBackendClient();
 	const coverageTreeProvider = new CoverageTreeDataProvider();
-	const coverageCommands = new CoverageCommands(coverageTreeProvider, coverageBackendClient);
+	const coverageCodeLensProvider = new CoverageCodeLensProvider();
+	
+	// Initialize preview components for Speculative Insertion
+	const reviewCodeLensProvider = new ReviewCodeLensProvider();
+	const inlinePreviewManager = new InlinePreviewManager(reviewCodeLensProvider);
+	
+	const coverageCommands = new CoverageCommands(
+		coverageTreeProvider,
+		coverageBackendClient,
+		coverageCodeLensProvider,
+		inlinePreviewManager
+	);
+
+	// Register CodeLens provider for coverage
+	const coverageCodeLensDisposable = vscode.languages.registerCodeLensProvider(
+		{ language: 'python' },
+		coverageCodeLensProvider
+	);
+	context.subscriptions.push(coverageCodeLensDisposable);
+
+	// Register CodeLens provider for review actions (Accept/Discard)
+	const reviewCodeLensDisposable = vscode.languages.registerCodeLensProvider(
+		{ language: 'python' },
+		reviewCodeLensProvider
+	);
+	context.subscriptions.push(reviewCodeLensDisposable);
 
 	// Register tree view for coverage analysis
 	const coverageTreeView = vscode.window.createTreeView('lltCoverageExplorer', {
@@ -256,6 +283,11 @@ export function activate(context: vscode.ExtensionContext) {
 		() => coverageCommands.clearCoverage()
 	);
 
+	const showCoverageItemCommand = vscode.commands.registerCommand(
+		'llt-assistant.showCoverageItem',
+		(filePath: string, func: any) => coverageCommands.showCoverageItem(filePath, func)
+	);
+
 	const generateCoverageTestCommand = vscode.commands.registerCommand(
 		'llt-assistant.generateCoverageTest',
 		(filePath: string, func: any) => coverageCommands.generateCoverageTest(filePath, func)
@@ -276,14 +308,50 @@ export function activate(context: vscode.ExtensionContext) {
 		(filePath: string, line: number) => coverageCommands.goToLine(filePath, line)
 	);
 
+	// Register CodeLens action commands
+	const coverageCodeLensYesCommand = vscode.commands.registerCommand(
+		'llt-assistant.coverageCodeLens.yes',
+		(filePath: string, func: any, uri: vscode.Uri, range: vscode.Range) => {
+			coverageCommands.handleCodeLensYes(filePath, func, uri, range);
+		}
+	);
+
+	const coverageCodeLensNoCommand = vscode.commands.registerCommand(
+		'llt-assistant.coverageCodeLens.no',
+		(uri: vscode.Uri, range: vscode.Range) => {
+			coverageCommands.handleCodeLensNo(uri, range);
+		}
+	);
+
+	// Register global commands for inline preview (to avoid duplicate registration)
+	const acceptInlinePreviewCommand = vscode.commands.registerCommand(
+		'llt-assistant.acceptInlinePreview',
+		() => {
+			inlinePreviewManager.acceptPreview();
+		}
+	);
+
+	const rejectInlinePreviewCommand = vscode.commands.registerCommand(
+		'llt-assistant.rejectInlinePreview',
+		() => {
+			inlinePreviewManager.rejectPreview();
+		}
+	);
+
 	context.subscriptions.push(
 		analyzeCoverageCommand,
 		refreshCoverageCommand,
 		clearCoverageCommand,
+		showCoverageItemCommand,
 		generateCoverageTestCommand,
 		batchGenerateTestsCommand,
 		showCoverageImprovementCommand,
 		goToLineCommand,
+		coverageCodeLensYesCommand,
+		coverageCodeLensNoCommand,
+		acceptInlinePreviewCommand,
+		rejectInlinePreviewCommand,
+		inlinePreviewManager,
 		coverageCommands
 	);
 

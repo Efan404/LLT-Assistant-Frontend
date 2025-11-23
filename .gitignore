@@ -2,8 +2,10 @@ out
 dist
 node_modules
 .vscode-test/
-coverage
 .nyc_output
 test-results
 test-workspace
 *.vsix
+
+.DS_Store
+.claude/

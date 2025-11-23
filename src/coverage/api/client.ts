@@ -5,18 +5,33 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import * as vscode from 'vscode';
 import {
-	GenerateCoverageTestRequest,
-	GenerateCoverageTestResponse,
-	BatchGenerateCoverageTestRequest,
-	BatchGenerateCoverageTestResponse,
-	CoverageBackendError
+	CoverageBackendError,
+	CoverageOptimizationRequest,
+	TaskStatusResponse
 } from './types';
 
+export class CoverageError extends Error implements CoverageBackendError {
+	type: 'network' | 'validation' | 'server' | 'timeout' | 'unknown';
+	detail: string;
+	statusCode?: number;
+
+	constructor(error: CoverageBackendError) {
+		super(error.message);
+		this.name = 'CoverageError';
+		this.type = error.type;
+		this.detail = error.detail;
+		this.statusCode = error.statusCode;
+	}
+}
+
 const DEFAULTS = {
-	BACKEND_URL: 'https://llt-assistant.fly.dev/api/v1',
+	BACKEND_URL: 'https://cs5351.efan.dev',
 	TIMEOUT_MS: 60000, // 60 seconds for test generation (longer than quality analysis)
 	RETRY_MAX_ATTEMPTS: 3,
-	RETRY_BASE_DELAY_MS: 2000 // 2 seconds
+	RETRY_BASE_DELAY_MS: 2000, // 2 seconds
+	POLL_INTERVAL_MS: 1000, // 1 second initial poll interval
+	MAX_POLL_INTERVAL_MS: 5000, // 5 seconds max poll interval
+	MAX_POLL_TIMEOUT_MS: 300000 // 5 minutes max wait time
 };
 
 export class CoverageBackendClient {
@@ -39,9 +54,11 @@ export class CoverageBackendClient {
 	/**
 	 * Get backend URL from VSCode configuration
 	 */
-	private getBackendUrl(): string {
+	public getBackendUrl(): string {
 		const config = vscode.workspace.getConfiguration('llt-assistant');
-		return config.get('backendUrl', DEFAULTS.BACKEND_URL);
+		const backendUrl = config.get('backendUrl', DEFAULTS.BACKEND_URL);
+		console.log(`[LLT Coverage API] Reading backend URL from config: ${backendUrl} (default: ${DEFAULTS.BACKEND_URL})`);
+		return backendUrl;
 	}
 
 	/**
@@ -74,24 +91,30 @@ export class CoverageBackendClient {
 	}
 
 	/**
-	 * Generate tests for a specific uncovered function
+	 * Request coverage optimization
 	 *
-	 * POST /workflows/generate-coverage-test
+	 * POST /optimization/coverage
+	 * Returns 202 Accepted with task_id for async processing
 	 */
-	async generateCoverageTest(
-		request: GenerateCoverageTestRequest
-	): Promise<GenerateCoverageTestResponse> {
+	async requestCoverageOptimization(
+		request: CoverageOptimizationRequest
+	): Promise<TaskStatusResponse> {
 		const maxRetries = DEFAULTS.RETRY_MAX_ATTEMPTS;
 		let lastError: any;
 
 		for (let attempt = 0; attempt < maxRetries; attempt++) {
 			try {
-				const response = await this.client.post<GenerateCoverageTestResponse>(
-					'/workflows/generate-coverage-test',
+				const response = await this.client.post<TaskStatusResponse>(
+					'/optimization/coverage',
 					request
 				);
 
-				return response.data;
+				// Expect 202 Accepted for async task
+				if (response.status === 202 || response.status === 200) {
+					return response.data;
+				}
+
+				throw new Error(`Unexpected status code: ${response.status}`);
 			} catch (error) {
 				lastError = error;
 
@@ -118,52 +141,77 @@ export class CoverageBackendClient {
 	}
 
 	/**
-	 * Batch generate tests for multiple functions
+	 * Poll task status
 	 *
-	 * POST /workflows/batch-generate-coverage-tests
+	 * GET /tasks/{task_id}
+	 * Returns current status of async task
 	 */
-	async batchGenerateCoverageTests(
-		request: BatchGenerateCoverageTestRequest
-	): Promise<BatchGenerateCoverageTestResponse> {
-		const maxRetries = DEFAULTS.RETRY_MAX_ATTEMPTS;
-		let lastError: any;
-
-		// Use longer timeout for batch operations
-		const originalTimeout = this.client.defaults.timeout;
-		this.client.defaults.timeout = 120000; // 2 minutes
-
+	async pollTaskStatus(taskId: string): Promise<TaskStatusResponse> {
 		try {
-			for (let attempt = 0; attempt < maxRetries; attempt++) {
-				try {
-					const response = await this.client.post<BatchGenerateCoverageTestResponse>(
-						'/workflows/batch-generate-coverage-tests',
-						request
-					);
+			const response = await this.client.get<TaskStatusResponse>(`/tasks/${taskId}`);
+			return response.data;
+		} catch (error) {
+			// Convert to CoverageBackendError for consistent error handling
+			const backendError = this.handleApiError(error);
+			throw new CoverageError(backendError);
+		}
+	}
 
-					return response.data;
-				} catch (error) {
-					lastError = error;
+	/**
+	 * Poll task status until completion with exponential backoff
+	 *
+	 * @param taskId - Task ID to poll
+	 * @param onProgress - Optional callback for progress updates
+	 * @returns Final task status response
+	 */
+	async pollTaskUntilComplete(
+		taskId: string,
+		onProgress?: (status: TaskStatusResponse) => void
+	): Promise<TaskStatusResponse> {
+		const startTime = Date.now();
+		let pollInterval = DEFAULTS.POLL_INTERVAL_MS;
 
-					if (!this.isRetryableError(error)) {
-						throw error;
-					}
-
-					if (attempt === maxRetries - 1) {
-						break;
-					}
-
-					const delayMs = Math.pow(2, attempt) * DEFAULTS.RETRY_BASE_DELAY_MS;
-					console.log(
-						`[LLT Coverage API] Batch retry attempt ${attempt + 1}/${maxRetries} after ${delayMs}ms`
-					);
-					await this.delay(delayMs);
-				}
+		while (true) {
+			// Check timeout
+			const elapsed = Date.now() - startTime;
+			if (elapsed > DEFAULTS.MAX_POLL_TIMEOUT_MS) {
+				throw new CoverageError({
+					type: 'timeout',
+					message: 'Task polling timeout',
+					detail: `Task ${taskId} did not complete within ${DEFAULTS.MAX_POLL_TIMEOUT_MS}ms`,
+					statusCode: 0
+				});
 			}
 
-			throw lastError;
-		} finally {
-			// Restore original timeout
-			this.client.defaults.timeout = originalTimeout;
+			// Poll status
+			const status = await this.pollTaskStatus(taskId);
+
+			// Call progress callback if provided
+			if (onProgress) {
+				onProgress(status);
+			}
+
+			// Check if task is complete
+			if (status.status === 'completed') {
+				return status;
+			}
+
+			// Check if task failed
+			if (status.status === 'failed') {
+				throw new CoverageError({
+					type: 'server',
+					message: 'Task failed',
+					detail: `Task ${taskId} failed during processing`,
+					statusCode: 0
+				});
+			}
+
+			// Wait before next poll with exponential backoff
+			await this.delay(pollInterval);
+			pollInterval = Math.min(
+				pollInterval * 1.5,
+				DEFAULTS.MAX_POLL_INTERVAL_MS
+			);
 		}
 	}
 
@@ -173,10 +221,38 @@ export class CoverageBackendClient {
 	 * GET /health
 	 */
 	async healthCheck(): Promise<boolean> {
+		// Update backend URL from configuration before health check
+		this.updateBackendUrl();
+		
 		try {
+			const fullUrl = `${this.baseUrl}/health`;
+			console.log(`[LLT Coverage API] Health check: ${fullUrl}`);
 			const response = await this.client.get('/health');
+			console.log(`[LLT Coverage API] Health check success: ${response.status}`);
 			return response.status === 200;
 		} catch (error) {
+			const fullUrl = `${this.baseUrl}/health`;
+			if (axios.isAxiosError(error)) {
+				const axiosError = error as AxiosError;
+				if (!axiosError.response) {
+					console.error(`[LLT Coverage API] Health check failed (network error): ${fullUrl}`, axiosError.message);
+					if (axiosError.code) {
+						console.error(`[LLT Coverage API] Error code: ${axiosError.code}`);
+					}
+					if (axiosError.request) {
+						console.error(`[LLT Coverage API] Request config:`, {
+							url: axiosError.config?.url,
+							baseURL: axiosError.config?.baseURL,
+							method: axiosError.config?.method
+						});
+					}
+				} else {
+					console.error(`[LLT Coverage API] Health check failed (HTTP ${axiosError.response.status}): ${fullUrl}`);
+					console.error(`[LLT Coverage API] Response data:`, axiosError.response.data);
+				}
+			} else {
+				console.error(`[LLT Coverage API] Health check failed: ${fullUrl}`, error);
+			}
 			return false;
 		}
 	}
@@ -283,10 +359,13 @@ export class CoverageBackendClient {
 	 */
 	public updateBackendUrl(): void {
 		const newUrl = this.getBackendUrl();
+		console.log(`[LLT Coverage API] Updating backend URL: ${this.baseUrl} -> ${newUrl}`);
 		if (newUrl !== this.baseUrl) {
 			this.baseUrl = newUrl;
 			this.client.defaults.baseURL = newUrl;
 			console.log(`[LLT Coverage API] Backend URL updated to: ${newUrl}`);
+		} else {
+			console.log(`[LLT Coverage API] Backend URL unchanged: ${newUrl}`);
 		}
 	}
 

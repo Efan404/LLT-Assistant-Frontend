@@ -12,7 +12,7 @@ export class ConfigurationManager {
    */
   public getBackendUrl(): string {
     const config = vscode.workspace.getConfiguration(this.configSection);
-    return config.get<string>('backendUrl', 'https://llt-assistant.fly.dev/api/v1');
+    return config.get<string>('backendUrl', 'https://cs5351.efan.dev');
   }
 
   /**

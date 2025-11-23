@@ -201,7 +201,7 @@
       "properties": {
         "llt-assistant.backendUrl": {
           "type": "string",
-          "default": "https://llt-assistant.fly.dev/api/v1",
+          "default": "https://cs5351.efan.dev",
           "description": "Backend API URL for test generation"
         },
         "llt-assistant.quality.backendUrl": {

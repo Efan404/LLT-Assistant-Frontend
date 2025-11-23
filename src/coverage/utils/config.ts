@@ -52,6 +52,6 @@ export class CoverageConfig {
 	 */
 	static getBackendUrl(): string {
 		const config = vscode.workspace.getConfiguration('llt-assistant');
-		return config.get('backendUrl', 'https://llt-assistant.fly.dev/api/v1');
+		return config.get('backendUrl', 'https://cs5351.efan.dev');
 	}
 }
