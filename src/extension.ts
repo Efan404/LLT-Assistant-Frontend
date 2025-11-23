@@ -160,7 +160,7 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 
 	const showIssueCommand = vscode.commands.registerCommand(
-		'llt-assistant.showIssue',
+		'llt-assistant.quality.showIssue',
 		async (issue) => {
 			try {
 				// Navigate to the issue location in the file
@@ -170,13 +170,13 @@ export function activate(context: vscode.ExtensionContext) {
 					return;
 				}
 
-				const filePath = vscode.Uri.file(`${workspaceRoot}/${issue.file}`);
+				const filePath = vscode.Uri.file(`${workspaceRoot}/${issue.file_path}`);
 
 				// Check if file exists
 				try {
 					await vscode.workspace.fs.stat(filePath);
 				} catch {
-					vscode.window.showErrorMessage(`File not found: ${issue.file}`);
+					vscode.window.showErrorMessage(`File not found: ${issue.file_path}`);
 					return;
 				}
 
@@ -214,9 +214,10 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 	context.subscriptions.push(configChangeListener);
 
-	// Auto-analyze feature: analyze when opening test files
+	// Auto-analyze feature: analyze when opening or saving test files
 	if (QualityConfigManager.getAutoAnalyze()) {
 		let autoAnalyzeTimer: NodeJS.Timeout | undefined;
+		const debounceDelay = QualityConfigManager.getAutoAnalyzeDebounceMs();
 
 		const autoAnalyzeListener = vscode.workspace.onDidOpenTextDocument(async (document) => {
 			if (document.languageId === 'python') {
@@ -231,11 +232,44 @@ export function activate(context: vscode.ExtensionContext) {
 					autoAnalyzeTimer = setTimeout(() => {
 						executeQualityAnalysis();
 						autoAnalyzeTimer = undefined;
-					}, 1000);
+					}, debounceDelay);
 				}
 			}
 		});
-		context.subscriptions.push(autoAnalyzeListener);
+
+		const autoAnalyzeSaveListener = vscode.workspace.onDidSaveTextDocument(async (document) => {
+			if (document.languageId === 'python') {
+				const fileName = document.fileName.toLowerCase();
+				if (fileName.includes('test_') || fileName.endsWith('_test.py')) {
+					// Clear previous timer to implement proper debounce
+					if (autoAnalyzeTimer) {
+						clearTimeout(autoAnalyzeTimer);
+					}
+
+					// Debounce and analyze in fast mode
+					autoAnalyzeTimer = setTimeout(() => {
+						qualityStatusBar.showAnalyzing();
+						analyzeCommand.execute('fast').finally(() => {
+							const result = qualityTreeProvider.getAnalysisResult();
+							if (result) {
+								const criticalCount = result.summary.critical_issues;
+								qualityStatusBar.showResults(result.issues.length, criticalCount);
+								diagnosticManager.updateDiagnostics(result.issues);
+								if (QualityConfigManager.getEnableInlineDecorations()) {
+									issueDecorator.updateIssues(result.issues);
+								}
+								if (QualityConfigManager.getEnableCodeActions()) {
+									suggestionProvider.updateIssues(result.issues);
+								}
+							}
+						});
+						autoAnalyzeTimer = undefined;
+					}, debounceDelay);
+				}
+			}
+		});
+
+		context.subscriptions.push(autoAnalyzeListener, autoAnalyzeSaveListener);
 	}
 
 	// ===== Coverage Optimization Feature =====
