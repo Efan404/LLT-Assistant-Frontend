@@ -131,7 +131,7 @@ suite('QualityBackendClient', () => {
 
       expect(result.issues).to.be.an('array');
       expect(result.issues.length).to.be.greaterThan(0);
-      expect(result.metrics).to.exist;
+      expect(result.summary).to.exist;
       expect(result.analysis_id).to.exist;
     });
 

@@ -8,8 +8,8 @@ import { QualityTreeProvider } from '../../../quality/activityBar/provider';
 import { TreeItemType } from '../../../quality/activityBar/types';
 import {
   createMockAnalysisResponse,
-  createMockIssues,
-  createMockQualityMetrics,
+  createMockIssueList,
+  createMockQualitySummary,
 } from '../../helpers/factories';
 import { resetAllMocks, mockWorkspace } from '../../mocks/vscode';
 
@@ -114,7 +114,7 @@ suite('QualityTreeProvider', () => {
   suite('getChildren - Root Level', () => {
     test('should return summary and file items at root', async () => {
       const mockResponse = createMockAnalysisResponse({
-        issues: createMockIssues(5, 'tests/test_example.py'),
+        issues: createMockIssueList(5, 'tests/test_example.py'),
       });
       provider.refresh(mockResponse);
 
@@ -128,8 +128,8 @@ suite('QualityTreeProvider', () => {
 
     test('should group issues by file', async () => {
       const issues = [
-        ...createMockIssues(3, 'tests/test_file1.py'),
-        ...createMockIssues(2, 'tests/test_file2.py'),
+        ...createMockIssueList(3, 'tests/test_file1.py'),
+        ...createMockIssueList(2, 'tests/test_file2.py'),
       ];
       const mockResponse = createMockAnalysisResponse({ issues });
       provider.refresh(mockResponse);
@@ -144,7 +144,7 @@ suite('QualityTreeProvider', () => {
     });
 
     test('should include issue counts in file items', async () => {
-      const issues = createMockIssues(5, 'tests/test_example.py');
+      const issues = createMockIssueList(5, 'tests/test_example.py');
       const mockResponse = createMockAnalysisResponse({ issues });
       provider.refresh(mockResponse);
 
@@ -159,7 +159,7 @@ suite('QualityTreeProvider', () => {
 
   suite('getChildren - File Level', () => {
     test('should return issue items for a file', async () => {
-      const issues = createMockIssues(3, 'tests/test_example.py');
+      const issues = createMockIssueList(3, 'tests/test_example.py');
       const mockResponse = createMockAnalysisResponse({ issues });
       provider.refresh(mockResponse);
 
@@ -173,9 +173,9 @@ suite('QualityTreeProvider', () => {
 
     test('should sort issues by line number', async () => {
       const issues = [
-        ...createMockIssues(1, 'tests/test.py'),
-        ...createMockIssues(1, 'tests/test.py'),
-        ...createMockIssues(1, 'tests/test.py'),
+        ...createMockIssueList(1, 'tests/test.py'),
+        ...createMockIssueList(1, 'tests/test.py'),
+        ...createMockIssueList(1, 'tests/test.py'),
       ];
       // Manually set line numbers out of order
       issues[0].line = 30;
@@ -195,7 +195,7 @@ suite('QualityTreeProvider', () => {
     });
 
     test('should include issue details in labels', async () => {
-      const issues = createMockIssues(1, 'tests/test.py');
+      const issues = createMockIssueList(1, 'tests/test.py');
       const mockResponse = createMockAnalysisResponse({ issues });
       provider.refresh(mockResponse);
 
@@ -211,7 +211,7 @@ suite('QualityTreeProvider', () => {
 
   suite('getChildren - Issue Level', () => {
     test('should return empty array for issue items', async () => {
-      const issues = createMockIssues(1, 'tests/test.py');
+      const issues = createMockIssueList(1, 'tests/test.py');
       const mockResponse = createMockAnalysisResponse({ issues });
       provider.refresh(mockResponse);
 
@@ -240,7 +240,7 @@ suite('QualityTreeProvider', () => {
     });
 
     test('should include command for issue items', async () => {
-      const issues = createMockIssues(1, 'tests/test.py');
+      const issues = createMockIssueList(1, 'tests/test.py');
       const mockResponse = createMockAnalysisResponse({ issues });
       provider.refresh(mockResponse);
 
@@ -257,8 +257,8 @@ suite('QualityTreeProvider', () => {
   suite('Summary Item', () => {
     test('should display total issues count', async () => {
       const mockResponse = createMockAnalysisResponse({
-        metrics: createMockQualityMetrics({
-          issues_count: 15,
+        summary: createMockQualitySummary({
+          total_issues: 15,
           total_tests: 50,
         }),
       });
@@ -273,7 +273,7 @@ suite('QualityTreeProvider', () => {
 
     test('should use singular "issue" for count of 1', async () => {
       const mockResponse = createMockAnalysisResponse({
-        metrics: createMockQualityMetrics({ issues_count: 1 }),
+        summary: createMockQualitySummary({ total_issues: 1 }),
       });
       provider.refresh(mockResponse);
 
@@ -298,7 +298,7 @@ suite('QualityTreeProvider', () => {
 
   suite('File Item', () => {
     test('should display file name without path', async () => {
-      const issues = createMockIssues(2, 'tests/unit/quality/test_example.py');
+      const issues = createMockIssueList(2, 'tests/unit/quality/test_example.py');
       const mockResponse = createMockAnalysisResponse({ issues });
       provider.refresh(mockResponse);
 
@@ -310,7 +310,7 @@ suite('QualityTreeProvider', () => {
     });
 
     test('should be expanded by default', async () => {
-      const issues = createMockIssues(2, 'tests/test.py');
+      const issues = createMockIssueList(2, 'tests/test.py');
       const mockResponse = createMockAnalysisResponse({ issues });
       provider.refresh(mockResponse);
 
@@ -323,9 +323,9 @@ suite('QualityTreeProvider', () => {
   });
 
   suite('Issue Item', () => {
-    test('should format issue type correctly', async () => {
-      const issues = createMockIssues(1, 'tests/test.py');
-      issues[0].type = 'trivial-assertion';
+    test('should format issue code correctly', async () => {
+      const issues = createMockIssueList(1, 'tests/test.py');
+      issues[0].code = 'trivial-assertion';
       const mockResponse = createMockAnalysisResponse({ issues });
       provider.refresh(mockResponse);
 
@@ -337,7 +337,7 @@ suite('QualityTreeProvider', () => {
     });
 
     test('should show detection method in description', async () => {
-      const issues = createMockIssues(1, 'tests/test.py');
+      const issues = createMockIssueList(1, 'tests/test.py');
       issues[0].detected_by = 'llm';
       const mockResponse = createMockAnalysisResponse({ issues });
       provider.refresh(mockResponse);
@@ -350,7 +350,7 @@ suite('QualityTreeProvider', () => {
     });
 
     test('should set command to navigate to issue', async () => {
-      const issues = createMockIssues(1, 'tests/test.py');
+      const issues = createMockIssueList(1, 'tests/test.py');
       const mockResponse = createMockAnalysisResponse({ issues });
       provider.refresh(mockResponse);
 
