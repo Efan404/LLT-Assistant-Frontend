@@ -201,8 +201,7 @@
       "properties": {
         "llt-assistant.backendUrl": {
           "type": "string",
-          "default": "https://cs5351.efan.dev",
-          "description": "Backend API URL for test generation"
+          "description": "Backend API URL for test generation (default: https://cs5351.efan.dev)"
         },
         "llt-assistant.quality.analysisMode": {
           "type": "string",

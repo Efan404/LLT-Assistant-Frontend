@@ -9,6 +9,7 @@ import {
 	CoverageOptimizationRequest,
 	TaskStatusResponse
 } from './types';
+import { BackendUrlConfig } from '../../utils/config';
 
 export class CoverageError extends Error implements CoverageBackendError {
 	type: 'network' | 'validation' | 'server' | 'timeout' | 'unknown';
@@ -25,7 +26,6 @@ export class CoverageError extends Error implements CoverageBackendError {
 }
 
 const DEFAULTS = {
-	BACKEND_URL: 'https://cs5351.efan.dev',
 	TIMEOUT_MS: 60000, // 60 seconds for test generation (longer than quality analysis)
 	RETRY_MAX_ATTEMPTS: 3,
 	RETRY_BASE_DELAY_MS: 2000, // 2 seconds
@@ -52,12 +52,11 @@ export class CoverageBackendClient {
 	}
 
 	/**
-	 * Get backend URL from VSCode configuration
+	 * Get backend URL from unified configuration
 	 */
 	public getBackendUrl(): string {
-		const config = vscode.workspace.getConfiguration('llt-assistant');
-		const backendUrl = config.get('backendUrl', DEFAULTS.BACKEND_URL);
-		console.log(`[LLT Coverage API] Reading backend URL from config: ${backendUrl} (default: ${DEFAULTS.BACKEND_URL})`);
+		const backendUrl = BackendUrlConfig.getBackendUrl();
+		console.log(`[LLT Coverage API] Reading backend URL from config: ${backendUrl}`);
 		return backendUrl;
 	}
 

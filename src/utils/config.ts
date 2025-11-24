@@ -11,7 +11,8 @@ export const GLOBAL_CONFIG = {
   // Backend API URLs
   BACKEND: {
     // Main backend URL (used for test generation, impact analysis, coverage, etc.)
-    URL: 'https://cs5351.efan.dev',
+    // URL: 'https://cs5351.efan.dev',
+    URL: 'http://localhost:8886',
   },
 
   // Configuration section names
