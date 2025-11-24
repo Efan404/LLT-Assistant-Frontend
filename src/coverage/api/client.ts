@@ -11,7 +11,7 @@ import {
 } from './types';
 import { BackendUrlConfig } from '../../utils/config';
 
-export class CoverageError extends Error implements CoverageBackendError {
+class CoverageError extends Error implements CoverageBackendError {
 	type: 'network' | 'validation' | 'server' | 'timeout' | 'unknown';
 	detail: string;
 	statusCode?: number;
